@@ -97,6 +97,11 @@ static int close_socket(SOCKET s) {
 using namespace cv;
 
 
+double get_cap_property(void * p, int property)
+{
+    auto cap = (VideoCapture *)p;
+    return cap->get(property);
+}
 
 class MJPG_sender
 {

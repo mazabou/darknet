@@ -1253,6 +1253,8 @@ int get_stream_fps(CvCapture *cap, int cpp_video_capture)
     }
     return fps;
 }
+
+
 #endif  // OPENCV
 
 void save_image_png(image im, const char *name)

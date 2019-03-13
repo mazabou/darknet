@@ -346,3 +346,15 @@ install(FILES
   "${PROJECT_BINARY_DIR}/DarknetConfigVersion.cmake"
   DESTINATION "${INSTALL_CMAKE_DIR}"
 )
+
+
+# That's ugly :/
+file(GLOB darknet_src
+        "src/*.h"
+        "src/*.cpp"
+        "src/*.c"
+        "src/*.hpp"
+        "src/*.cu"
+        )
+add_executable(Video_runner src/video_runner.c ${darknet_src})
+target_link_libraries(Video_runner ${OpenCV_LIBS})
