@@ -15,6 +15,7 @@
 #include <unistd.h>
 #endif
 
+#include <libgen.h>
 
 #ifdef OPENCV
 #include <opencv2/highgui/highgui_c.h>
@@ -38,11 +39,7 @@ static image in_s ;
 static image det_s;
 static CvCapture * cap;
 static int cpp_video_capture = 0;
-static float fps = 0;
 static float video_detect_thresh = 0;
-static int video_detect_ext_output = 0;
-static long long int frame_id = 0;
-static int video_detect_json_port = -1;
 
 static float* predictions[NFRAMES];
 static int video_detect_index = 0;
@@ -85,7 +82,7 @@ void *fetch_frame_in_thread(void *ptr)
         //error("Stream closed.");
         printf("Stream closed.\n");
         flag_exit = 1;
-        exit(EXIT_FAILURE);
+//        exit(EXIT_FAILURE);
     }
     //in_s = resize_image(in, net.w, net.h);
 
@@ -112,16 +109,7 @@ void *detect_frame_in_thread(void *ptr)
         dets = get_network_boxes(&net, in_img->width, in_img->height, video_detect_thresh, video_detect_thresh, 0, 1, &nboxes, 1); // letter box
     else
         dets = get_network_boxes(&net, net.w, net.h, video_detect_thresh, video_detect_thresh, 0, 1, &nboxes, 0); // resized
-        
-    // add detection to the list    
-    struct detection_list_element * new_detection;
-    new_detection = (struct detection_list_element *) malloc(sizeof(struct detection_list_element));
-    new_detection->next = NULL;
-    new_detection->dets = dets;
-    new_detection->nboxes = nboxes;
-    detection_list_head->next = new_detection;
-    detection_list_head = new_detection;    
-        
+
     return 0;
 }
 
@@ -193,13 +181,14 @@ void *write_in_thread(void * raw_args)
     timeinfo = localtime (&now);
     char timeText[128];
     strftime(timeText, 128, "%A %d %B %Y, %H:%M", timeinfo);
+    double video_fps = get_cap_property(args->cap, CV_CAP_PROP_FPS);
     fprintf(json, "{\n"
                   "    \"output\": {\n"
                   "        \"video_cfg\": {\n"
                   "            \"datetime\": \"\",\n"
                   "            \"route\": \"\",\n"
                   "            \"com_pos\": \"\",\n"
-                  "            \"fps\": \"%f\",\n"
+                  "            \"video_fps\": \"%f\",\n"
                   "            \"resolution\": \"%dx%d\"\n"
                   "        },\n"
                   "        \"framework\": {\n"
@@ -209,8 +198,7 @@ void *write_in_thread(void * raw_args)
                   "            \"weights\": \"%s\"\n"
                   "        },\n"
                   "        \"frames\": [\n",
-            get_cap_property(args->cap, CV_CAP_PROP_FPS), (int)video_width, (int)video_height, __DATE__, timeText,
-            basename(args->weightsPath));
+            video_fps, (int)video_width, (int)video_height, __DATE__, timeText, basename(args->weightsPath));
 
     int frame_number = 0;
 
@@ -227,7 +215,7 @@ void *write_in_thread(void * raw_args)
             free(old_element);
 
             char rois[512] = "";
-            char signs[1024] = "";
+            char signs[4096] = "";
             detections_to_rois(cur_element->dets, cur_element->nboxes, rois, signs);
 
             if(frame_number != 0){
@@ -250,11 +238,20 @@ void *write_in_thread(void * raw_args)
     return 0;
 }
 
+int ms_time()
+{
+    struct timeval time;
+    if (gettimeofday(&time,NULL)){
+        return 0;
+    }
+    return (int)time.tv_sec * 1000000 + (int)time.tv_usec;
+}
 
 void detect_in_video(char *cfgfile, char *weightfile, float thresh, const char *video_filename,
                      char *classes_names_file, int classes_count, float hier_thresh, char *json_output_file, int decrypt_weights)
 {
     in_img = det_img = NULL;
+    IplImage* old_im = NULL;
     //skip = frame_skip;
     image **alphabet = load_alphabet();
     video_detect_names = get_labels(classes_names_file);
@@ -314,6 +311,8 @@ void detect_in_video(char *cfgfile, char *weightfile, float thresh, const char *
     det_img = in_img;
     det_s = in_s;
 
+    int detection_time = ms_time();
+
     fetch_frame_in_thread(0);
     detect_frame_in_thread(0);
     det_img = in_img;
@@ -341,6 +340,9 @@ void detect_in_video(char *cfgfile, char *weightfile, float thresh, const char *
             if(pthread_create(&fetch_thread, 0, fetch_frame_in_thread, 0)) error("Thread creation failed");
             if(pthread_create(&detect_thread, 0, detect_frame_in_thread, 0)) error("Thread creation failed");
 
+            // clear memory of previous frame
+            cvReleaseImage(&old_im);
+
             float nms = .45;    // 0.4F
             int local_nboxes = nboxes;
             detection *local_dets = dets;
@@ -348,36 +350,36 @@ void detect_in_video(char *cfgfile, char *weightfile, float thresh, const char *
             //if (nms) do_nms_obj(local_dets, local_nboxes, l.classes, nms);    // bad results
             if (nms) do_nms_sort(local_dets, local_nboxes, l.classes, nms);
 
-            printf("\033[2J");
-            printf("\033[1;1H");
-            printf("\nFPS:%.1f\n", fps);
-            printf("Objects:\n\n");
+            int cur_time = ms_time();
+            printf("                  \rFPS:%.2f",1e6/(double)(cur_time - detection_time + 1)); // prevent 0 div error
+            detection_time = cur_time;
 
-            ++frame_id;
-            if (video_detect_json_port > 0) {
-                int timeout = 400000;
-                send_json(local_dets, local_nboxes, l.classes, video_detect_names, frame_id, video_detect_json_port, timeout);
-            }
-
-            //do something with the results
-
-            free_detections(local_dets, local_nboxes);
-
+            // add previous detection to the list
+            struct detection_list_element * new_detection;
+            new_detection = (struct detection_list_element *) malloc(sizeof(struct detection_list_element));
+            new_detection->next = NULL;
+            new_detection->dets = local_dets;
+            new_detection->nboxes = local_nboxes;
+            detection_list_head->next = new_detection;
+            detection_list_head = new_detection;
 
             pthread_join(fetch_thread, 0);
             pthread_join(detect_thread, 0);
 
             if (flag_exit == 1) break;
 
+            old_im = det_img;
             det_img = in_img;
             det_s = in_s;
         }
     }
-    printf("input video stream closed. \n");
+    printf("\ninput video stream closed. \n");
     pthread_join(write_thread, 0);
+    printf("Write finished.\n");
 
     // free memory
     free_detections(detection_list_head->dets, detection_list_head->nboxes);
+    cvReleaseImage(&old_im);
     cvReleaseImage(&in_img);
     free_image(in_s);
 
