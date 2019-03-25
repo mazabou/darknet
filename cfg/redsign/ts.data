@@ -1,0 +1,6 @@
+classes= 10
+train  = /home/gpu_user/datasets/train.txt
+valid  = /home/gpu_user/datasets/test.txt
+names = /home/gpu_user/datasets/ts.names
+backup = backup3
+

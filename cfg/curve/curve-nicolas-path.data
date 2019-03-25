@@ -1,0 +1,6 @@
+classes= 1
+train  = /home/nicolas/datasets/Curves/images_with_sign.txt
+valid  = /home/nicolas/datasets/Curves/images_with_sign.txt
+names = /home/nicolas/datasets/Curves/curve.names
+backup = backup_curve
+

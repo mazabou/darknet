@@ -1,0 +1,6 @@
+classes= 10
+train  = /home/nicolas/datasets/train.txt
+valid  = /home/nicolas/datasets/test.txt
+names = /home/nicolas/datasets/ts.names
+backup = backup2
+

@@ -1,4 +1,5 @@
 *.o
+*.a
 *.dSYM
 *.csv
 *.out
@@ -14,10 +15,14 @@ opencv/
 convnet/
 decaf/
 submission/
-cfg/
+#cfg/
 build/darknet/*
 build_*/
 !build/darknet/YoloWrapper.cs
+cmake-build-debug/
+darknet
+uselib
+video_runner
 .fuse*
 *.weights
 
@@ -32,3 +37,4 @@ lib/
 include/
 share/
 
+.idea/
