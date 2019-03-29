@@ -188,7 +188,7 @@ void *write_in_thread(void * raw_args)
                   "            \"datetime\": \"\",\n"
                   "            \"route\": \"\",\n"
                   "            \"com_pos\": \"\",\n"
-                  "            \"video_fps\": \"%f\",\n"
+                  "            \"video_fps\": %f,\n"
                   "            \"resolution\": \"%dx%d\"\n"
                   "        },\n"
                   "        \"framework\": {\n"
