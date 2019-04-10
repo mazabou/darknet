@@ -200,7 +200,7 @@ void *write_in_thread(void * raw_args)
                   "        \"frames\": [\n",
             video_fps, (int)video_width, (int)video_height, __DATE__, timeText, basename(args->weightsPath));
 
-    int frame_number = 0;
+    int frame_number = 1;
 
     while(flag_exit != 1 || cur_element->next != NULL){
         if(cur_element->next == NULL){
@@ -218,7 +218,7 @@ void *write_in_thread(void * raw_args)
             char signs[4096] = "";
             detections_to_rois(cur_element->dets, cur_element->nboxes, rois, signs);
 
-            if(frame_number != 0){
+            if(frame_number != 1){
                 fprintf(json, ",\n");
             }
             fprintf(json, "            {\n"
@@ -351,7 +351,7 @@ void detect_in_video(char *cfgfile, char *weightfile, float thresh, const char *
             if (nms) do_nms_sort(local_dets, local_nboxes, l.classes, nms);
 
             int cur_time = ms_time();
-            if (count % 20 == 0){
+            if (count % 8 == 0){
                 printf("\rFPS:%.2f  ",1e6/(double)(cur_time - detection_time + 1)); // prevent 0 div error
             }
             detection_time = cur_time;
