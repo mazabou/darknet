@@ -351,9 +351,9 @@ void detect_in_video(char *cfgfile, char *weightfile, float thresh, const char *
             if (nms) do_nms_sort(local_dets, local_nboxes, l.classes, nms);
 
             int cur_time = ms_time();
-            if (count % 8 == 0){
+//            if (count % 8 == 0){
                 printf("\rFPS:%.2f  ",1e6/(double)(cur_time - detection_time + 1)); // prevent 0 div error
-            }
+//            }
             detection_time = cur_time;
 
             // add previous detection to the list
