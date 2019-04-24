@@ -2,7 +2,7 @@
 #include "image.h"
 #include "http_stream.h"
 
-#ifdef OPENCV
+
 //
 // a single-threaded, multi client(using select), debug webserver - streaming out mjpg.
 //  on win, _WIN32 has to be defined, must link against ws2_32.lib (socks on linux are for free)
@@ -89,7 +89,7 @@ static int close_socket(SOCKET s) {
 }
 #endif // _WIN32
 
-
+#ifdef OPENCV
 #include <opencv2/opencv.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/highgui/highgui_c.h>
@@ -105,6 +105,7 @@ double get_cap_property(void * p, int property)
     auto cap = (VideoCapture *)p;
     return cap->get(property);
 }
+#endif
 
 class JSON_sender
 {
