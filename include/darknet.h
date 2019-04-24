@@ -5,6 +5,10 @@
 #define inline __inline
 #endif
 
+#if defined(DEBUG) && !defined(_CRTDBG_MAP_ALLOC)
+#define _CRTDBG_MAP_ALLOC
+#endif
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -518,7 +522,7 @@ struct layer {
 
 // network.h
 typedef enum {
-    CONSTANT, STEP, EXP, POLY, STEPS, SIG, RANDOM
+    CONSTANT, STEP, EXP, POLY, STEPS, SIG, RANDOM, SGDR
 } learning_rate_policy;
 
 // network.h
@@ -534,6 +538,9 @@ typedef struct network {
     learning_rate_policy policy;
 
     float learning_rate;
+    float learning_rate_min;
+    float learning_rate_max;
+    int batches_per_cycle;
     float momentum;
     float decay;
     float gamma;
@@ -703,6 +710,7 @@ typedef struct load_args {
     int mini_batch;
     int track;
     int augment_speed;
+    int show_imgs;
     float jitter;
     int flip;
     float angle;
@@ -767,8 +775,8 @@ LIB_API layer* get_network_layer(network* net, int i);
 LIB_API detection *make_network_boxes(network *net, float thresh, int *num);
 LIB_API void reset_rnn(network *net);
 LIB_API float *network_predict_image(network *net, image im);
-LIB_API float validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, float thresh_calc_avg_iou, const float iou_thresh, network *existing_net);
-LIB_API void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, int ngpus, int clear, int dont_show, int calc_map, int mjpeg_port);
+LIB_API float validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, float thresh_calc_avg_iou, const float iou_thresh, const int map_points, network *existing_net);
+LIB_API void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, int ngpus, int clear, int dont_show, int calc_map, int mjpeg_port, int show_imgs);
 LIB_API void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filename, float thresh,
     float hier_thresh, int dont_show, int ext_output, int save_labels, char *outfile);
 LIB_API int network_width(network *net);
@@ -792,10 +800,11 @@ LIB_API void free_data(data d);
 LIB_API pthread_t load_data(load_args args);
 LIB_API pthread_t load_data_in_thread(load_args args);
 
-// cuda.h
+// dark_cuda.h
 LIB_API void cuda_pull_array(float *x_gpu, float *x, size_t n);
 LIB_API void cuda_pull_array_async(float *x_gpu, float *x, size_t n);
 LIB_API void cuda_set_device(int n);
+LIB_API void *cuda_get_context();
 
 // utils.h
 LIB_API void free_ptrs(void **ptrs, int n);
@@ -809,6 +818,8 @@ LIB_API metadata get_metadata(char *file);
 
 
 // http_stream.h
+LIB_API void delete_json_sender();
+LIB_API void send_json_custom(char const* send_buf, int port, int timeout);
 LIB_API double get_time_point();
 void start_timer();
 void stop_timer();

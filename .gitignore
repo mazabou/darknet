@@ -6,6 +6,7 @@
 *.png
 *.so
 *.exe
+*.dll
 mnist/
 data/
 caffe/
@@ -32,6 +33,10 @@ ehthumbs.db
 Icon?
 Thumbs.db
 *.swp
+
+# IDE generated #
+.vs/
+.vscode/
 
 lib/
 include/

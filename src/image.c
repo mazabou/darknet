@@ -1,7 +1,7 @@
 #include "image.h"
 #include "utils.h"
 #include "blas.h"
-#include "cuda.h"
+#include "dark_cuda.h"
 #include <stdio.h>
 #ifndef _USE_MATH_DEFINES
 #define _USE_MATH_DEFINES
@@ -35,7 +35,7 @@
 #endif
 
 extern int check_mistakes;
-int windows = 0;
+//int windows = 0;
 
 float colors[6][3] = { {1,0,1}, {0,0,1},{0,1,1},{0,1,0},{1,1,0},{1,0,0} };
 
@@ -1253,8 +1253,6 @@ int get_stream_fps(CvCapture *cap, int cpp_video_capture)
     }
     return fps;
 }
-
-
 #endif  // OPENCV
 
 void save_image_png(image im, const char *name)
@@ -1927,6 +1925,7 @@ void test_resize(char *filename)
     show_image(c2, "C2");
     show_image(c3, "C3");
     show_image(c4, "C4");
+
 #ifdef OPENCV
     while(1){
         image aug = random_augment_image(im, 0, .75, 320, 448, 320);
@@ -1948,7 +1947,7 @@ void test_resize(char *filename)
         show_image(c, "rand");
         printf("%f %f %f\n", dhue, dsat, dexp);
         free_image(c);
-        cvWaitKey(0);
+        wait_until_press_key_cv();
     }
 #endif
 }
@@ -1991,17 +1990,11 @@ image load_image_stb(char *filename, int channels)
 image load_image(char *filename, int w, int h, int c)
 {
 #ifdef OPENCV
-
-#ifndef CV_VERSION_EPOCH
-    //image out = load_image_stb(filename, c);    // OpenCV 3.x
+    //image out = load_image_stb(filename, c);
     image out = load_image_cv(filename, c);
 #else
-    image out = load_image_cv(filename, c);        // OpenCV 2.4.x
-#endif
-
-#else
     image out = load_image_stb(filename, c);    // without OpenCV
-#endif
+#endif  // OPENCV
 
     if((h && w) && (h != out.h || w != out.w)){
         image resized = resize_image(out, w, h);
