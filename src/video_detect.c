@@ -103,7 +103,7 @@ void *detect_frame_in_thread(void *ptr)
     video_detect_index = (video_detect_index + 1) % NFRAMES;
 
     if (letter_box)
-        dets = get_network_boxes(&net, get_width_mat(in_img), get_height_mat(in_img), video_detect_thresh, video_detect_thresh, 0, 1, &nboxes, 1); // letter box
+        dets = get_network_boxes(&net, in_img->width, in_img->height, video_detect_thresh, video_detect_thresh, 0, 1, &nboxes, 1); // letter box
     else
         dets = get_network_boxes(&net, net.w, net.h, video_detect_thresh, video_detect_thresh, 0, 1, &nboxes, 0); // resized
 
