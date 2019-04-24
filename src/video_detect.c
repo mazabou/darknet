@@ -25,6 +25,8 @@
 #include <opencv2/videoio/videoio_c.h>
 #endif
 #include "http_stream.h"
+#include "../include/darknet.h"
+
 image get_image_from_stream(CvCapture *cap);
 
 static char **video_detect_names;
@@ -306,10 +308,6 @@ void detect_in_video(char *cfgfile, char *weightfile, float thresh, const char *
     pthread_t fetch_thread;
     pthread_t detect_thread;
     pthread_t write_thread;
-
-    fetch_frame_in_thread(0);
-    det_img = in_img;
-    det_s = in_s;
 
     int detection_time = ms_time();
 
