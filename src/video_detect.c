@@ -389,7 +389,7 @@ void detect_in_video(char *cfgfile, char *weightfile, float thresh, const char *
 
     // free memory
     free_detections(detection_list_head->dets, detection_list_head->nboxes);
-    release_mat(&det_img);
+    release_mat(&old_im);
     release_mat(&in_img);
     free_image(in_s);
 
