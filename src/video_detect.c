@@ -340,7 +340,7 @@ void detect_in_video(char *cfgfile, char *weightfile, float thresh, const char *
             if(pthread_create(&detect_thread, 0, detect_frame_in_thread, 0)) error("Thread creation failed");
 
             // clear memory of previous frame
-            cvReleaseImage(&old_im);
+            release_mat(&old_im);
 
             float nms = .45;    // 0.4F
             int local_nboxes = nboxes;
@@ -380,8 +380,8 @@ void detect_in_video(char *cfgfile, char *weightfile, float thresh, const char *
 
     // free memory
     free_detections(detection_list_head->dets, detection_list_head->nboxes);
-    cvReleaseImage(&old_im);
-    cvReleaseImage(&in_img);
+    release_mat(&old_im);
+    release_mat(&in_img);
     free_image(in_s);
 
 //    free(avg);
