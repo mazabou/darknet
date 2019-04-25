@@ -34,7 +34,7 @@ static image **video_detect_alphabet;
 static int video_detect_classes;
 
 static int nboxes = 0;
-static detection *dets = NULL;
+static detection *dets = NULL, *previous_dets = NULL;
 
 static network net;
 static image in_s ;
@@ -56,7 +56,7 @@ IplImage* in_img;
 IplImage* det_img;
 //IplImage* show_img;
 
-static int flag_exit;
+static int flag_video_end, flag_detection_end;
 static int letter_box = 0;
 
 struct detection_list_element{
@@ -77,7 +77,7 @@ void *fetch_frame_in_thread(void *ptr)
         in_s = get_image_from_stream_resize(cap, net.w, net.h, net.c, &in_img, dont_close_stream);
     if(!in_s.data){
         printf("Stream closed.\n");
-        flag_exit = 1;
+        flag_video_end = 1;
         //exit(EXIT_FAILURE);
         return 0;
     }
@@ -199,7 +199,7 @@ void *write_in_thread(void * raw_args)
 
     int frame_number = 0;
 
-    while(flag_exit != 1 || cur_element->next != NULL){
+    while(flag_detection_end != 1 || cur_element->next != NULL){
         if(cur_element->next == NULL){
             sleep(1); // if list already empty, sleep one second
         }
@@ -215,7 +215,7 @@ void *write_in_thread(void * raw_args)
             char signs[4096] = "";
             detections_to_rois(cur_element->dets, cur_element->nboxes, rois, signs);
 
-            if(frame_number != 1){
+            if(frame_number != 0){
                 fprintf(json, ",\n");
             }
             fprintf(json, "            {\n"
@@ -242,6 +242,22 @@ int ms_time()
         return 0;
     }
     return (int)time.tv_sec * 1000000 + (int)time.tv_usec;
+}
+
+void * feedDetectionListFromPreviousDets(){
+    const float nms = .45;    // 0.4F
+    int local_nboxes = nboxes;
+
+    if (nms) do_nms_sort(previous_dets, local_nboxes, net.layers[net.n-1].classes, nms);
+
+    // add previous detection to the list
+    struct detection_list_element * new_detection;
+    new_detection = (struct detection_list_element *) malloc(sizeof(struct detection_list_element));
+    new_detection->next = NULL;
+    new_detection->dets = previous_dets;
+    new_detection->nboxes = local_nboxes;
+    detection_list_head->next = new_detection;
+    detection_list_head = new_detection;
 }
 
 void detect_in_video(char *cfgfile, char *weightfile, float thresh, const char *video_filename,
@@ -297,8 +313,8 @@ void detect_in_video(char *cfgfile, char *weightfile, float thresh, const char *
         exit(0);
     }
 
-
-    flag_exit = 0;
+    flag_video_end = 0;
+    flag_detection_end = 0;
 
     pthread_t fetch_thread;
     pthread_t detect_thread;
@@ -316,6 +332,7 @@ void detect_in_video(char *cfgfile, char *weightfile, float thresh, const char *
     old_im = det_img;
     det_img = in_img;
     det_s = in_s;
+    previous_dets = dets;
 
 //    for (j = 0; j < NFRAMES / 2; ++j) {
 //        fetch_frame_in_thread(0);
@@ -342,12 +359,8 @@ void detect_in_video(char *cfgfile, char *weightfile, float thresh, const char *
             // clear memory of previous frame
             release_mat(&old_im);
 
-            float nms = .45;    // 0.4F
-            int local_nboxes = nboxes;
-            detection *local_dets = dets;
-
-            //if (nms) do_nms_obj(local_dets, local_nboxes, l.classes, nms);    // bad results
-            if (nms) do_nms_sort(local_dets, local_nboxes, l.classes, nms);
+            // add previous detection to the list
+            feedDetectionListFromPreviousDets();
 
             int cur_time = ms_time();
 //            if (count % 8 == 0){
@@ -355,32 +368,28 @@ void detect_in_video(char *cfgfile, char *weightfile, float thresh, const char *
 //            }
             detection_time = cur_time;
 
-            // add previous detection to the list
-            struct detection_list_element * new_detection;
-            new_detection = (struct detection_list_element *) malloc(sizeof(struct detection_list_element));
-            new_detection->next = NULL;
-            new_detection->dets = local_dets;
-            new_detection->nboxes = local_nboxes;
-            detection_list_head->next = new_detection;
-            detection_list_head = new_detection;
-
             pthread_join(fetch_thread, 0);
             pthread_join(detect_thread, 0);
 
-            if (flag_exit == 1) break;
+            if (flag_video_end == 1) break;
 
             old_im = det_img;
             det_img = in_img;
             det_s = in_s;
+            previous_dets = dets;
         }
     }
     printf("\ninput video stream closed. \n");
+    // process last detection
+    previous_dets = dets;
+    feedDetectionListFromPreviousDets();
+    flag_detection_end = 1;
     pthread_join(write_thread, 0);
     printf("Write finished.\n");
 
     // free memory
     free_detections(detection_list_head->dets, detection_list_head->nboxes);
-    release_mat(&old_im);
+    release_mat(&det_img);
     release_mat(&in_img);
     free_image(in_s);
 
