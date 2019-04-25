@@ -43,11 +43,11 @@ static CvCapture * cap;
 static int cpp_video_capture = 0;
 static float video_detect_thresh = 0;
 
-static float* predictions[NFRAMES];
-static int video_detect_index = 0;
-static image images[NFRAMES];
-static IplImage* ipl_images[NFRAMES];
-static float *avg;
+//static float* predictions[NFRAMES];
+//static int video_detect_index = 0;
+//static image images[NFRAMES];
+//static IplImage* ipl_images[NFRAMES];
+//static float *avg;
 
 //image get_image_from_stream_resize(CvCapture *cap, int w, int h, int c, IplImage** in_img, int cpp_video_capture, int dont_close);
 //image get_image_from_stream_letterbox(CvCapture *cap, int w, int h, int c, IplImage** in_img, int cpp_video_capture, int dont_close);
@@ -88,22 +88,22 @@ void *fetch_frame_in_thread(void *ptr)
 
 void *detect_frame_in_thread(void *ptr)
 {
-    layer l = net.layers[net.n-1];
+//    layer l = net.layers[net.n-1];
     float *X = det_s.data;
     float *prediction = network_predict(net, X);
 
-    memcpy(predictions[video_detect_index], prediction, l.outputs*sizeof(float));
-    mean_arrays(predictions, NFRAMES, l.outputs, avg);
-    l.output = avg;
+//    memcpy(predictions[video_detect_index], prediction, l.outputs*sizeof(float));
+//    mean_arrays(predictions, NFRAMES, l.outputs, avg);
+//    l.output = avg;
 
     free_image(det_s);
 
-    ipl_images[video_detect_index] = det_img;
-    det_img = ipl_images[(video_detect_index + NFRAMES / 2 + 1) % NFRAMES];
-    video_detect_index = (video_detect_index + 1) % NFRAMES;
+//    ipl_images[video_detect_index] = det_img;
+//    det_img = ipl_images[(video_detect_index + NFRAMES / 2 + 1) % NFRAMES];
+//    video_detect_index = (video_detect_index + 1) % NFRAMES;
 
     if (letter_box)
-        dets = get_network_boxes(&net, in_img->width, in_img->height, video_detect_thresh, video_detect_thresh, 0, 1, &nboxes, 1); // letter box
+        dets = get_network_boxes(&net, get_width_mat(in_img), get_height_mat(in_img), video_detect_thresh, video_detect_thresh, 0, 1, &nboxes, 1); // letter box
     else
         dets = get_network_boxes(&net, net.w, net.h, video_detect_thresh, video_detect_thresh, 0, 1, &nboxes, 0); // resized
 
@@ -287,9 +287,9 @@ void detect_in_video(char *cfgfile, char *weightfile, float thresh, const char *
     layer l = net.layers[net.n-1];
     int j;
 
-    avg = (float *) calloc(l.outputs, sizeof(float));
-    for(j = 0; j < NFRAMES; ++j) predictions[j] = (float *) calloc(l.outputs, sizeof(float));
-    for(j = 0; j < NFRAMES; ++j) images[j] = make_image(1,1,3);
+//    avg = (float *) calloc(l.outputs, sizeof(float));
+//    for(j = 0; j < NFRAMES; ++j) predictions[j] = (float *) calloc(l.outputs, sizeof(float));
+//    for(j = 0; j < NFRAMES; ++j) images[j] = make_image(1,1,3);
 
     if (l.classes != video_detect_classes) {
         printf("Parameters don't match: in cfg-file classes=%d, in data-file classes=%d \n", l.classes, video_detect_classes);
@@ -307,16 +307,21 @@ void detect_in_video(char *cfgfile, char *weightfile, float thresh, const char *
     int detection_time = ms_time();
 
     fetch_frame_in_thread(0);
+    det_img = in_img;
+    det_s = in_s;
+
+
+    fetch_frame_in_thread(0);
     detect_frame_in_thread(0);
     det_img = in_img;
     det_s = in_s;
 
-    for (j = 0; j < NFRAMES / 2; ++j) {
-        fetch_frame_in_thread(0);
-        detect_frame_in_thread(0);
-        det_img = in_img;
-        det_s = in_s;
-    }
+//    for (j = 0; j < NFRAMES / 2; ++j) {
+//        fetch_frame_in_thread(0);
+//        detect_frame_in_thread(0);
+//        det_img = in_img;
+//        det_s = in_s;
+//    }
 
     struct write_in_thread_args writer_args;
     writer_args.list_first_element = detection_list_head;
@@ -378,9 +383,9 @@ void detect_in_video(char *cfgfile, char *weightfile, float thresh, const char *
     cvReleaseImage(&in_img);
     free_image(in_s);
 
-    free(avg);
-    for (j = 0; j < NFRAMES; ++j) free(predictions[j]);
-    for (j = 0; j < NFRAMES; ++j) free_image(images[j]);
+//    free(avg);
+//    for (j = 0; j < NFRAMES; ++j) free(predictions[j]);
+//    for (j = 0; j < NFRAMES; ++j) free_image(images[j]);
 
     int i;
     const int nsize = 8;
