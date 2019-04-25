@@ -197,7 +197,7 @@ void *write_in_thread(void * raw_args)
                   "        \"frames\": [\n",
             video_fps, (int)video_width, (int)video_height, __DATE__, timeText, basename(args->weightsPath));
 
-    int frame_number = 1;
+    int frame_number = 0;
 
     while(flag_exit != 1 || cur_element->next != NULL){
         if(cur_element->next == NULL){
@@ -313,6 +313,7 @@ void detect_in_video(char *cfgfile, char *weightfile, float thresh, const char *
 
     fetch_frame_in_thread(0);
     detect_frame_in_thread(0);
+    old_im = det_img;
     det_img = in_img;
     det_s = in_s;
 
