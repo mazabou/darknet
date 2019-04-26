@@ -418,7 +418,7 @@ void detect_in_video(char *cfgfile, char *weightfile, float thresh, const char *
                 release_mat(&det_img);
 
                 // add previous detection to the list if a detection was done on previous frame
-                if(frameNumber == nextIntervalStart) {
+                if(frameNumber != nextIntervalStart) {
                     feedDetectionListFromPreviousDets();
                 }
 
