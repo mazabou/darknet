@@ -301,6 +301,7 @@ void detect_in_video(char *cfgfile, char *weightfile, float thresh, const char *
     video_height = (float)get_cap_property(cap, CV_CAP_PROP_FRAME_HEIGHT);
     video_width = (float)get_cap_property(cap, CV_CAP_PROP_FRAME_WIDTH);
     video_fps = (float)get_cap_property(cap, CV_CAP_PROP_FPS);
+    int video_frame_count = (int)get_cap_property(cap, CV_CAP_PROP_FRAME_COUNT);
 
     // convert time of detection into frames
     int frameDetectionInterval[intervalCount*2];
@@ -375,7 +376,7 @@ void detect_in_video(char *cfgfile, char *weightfile, float thresh, const char *
                 // handle previous image detection
                 feedDetectionListFromPreviousDets();
                 // start loading next frame for detection
-                set_cap_property(cap, CV_CAP_PROP_POS_FRAMES, (double)(nextIntervalStart-1));
+                set_cap_property(cap, CV_CAP_PROP_POS_FRAMES, (double)(nextIntervalStart-1 < video_frame_count ? nextIntervalStart-1 : video_frame_count));
                 if(pthread_create(&fetch_thread, 0, fetch_frame_in_thread, 0)) error("Thread creation failed");
                 for(; frameNumber<nextIntervalStart; frameNumber++){
                     // add fake empty detection
@@ -406,7 +407,7 @@ void detect_in_video(char *cfgfile, char *weightfile, float thresh, const char *
                     currentDetectionIntervalIndex++;
                     // if this was the last section set the value such as the rest of the video is filled with empty detection
                     if (currentDetectionIntervalIndex >= intervalCount) {
-                        nextIntervalStart = (int) get_cap_property(cap, CV_CAP_PROP_FRAME_COUNT);
+                        nextIntervalStart = video_frame_count;
                         nextIntervalEnd = INT_MAX;
                     } else {
                         nextIntervalStart = frameDetectionInterval[currentDetectionIntervalIndex * 2];
