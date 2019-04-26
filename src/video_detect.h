@@ -6,7 +6,8 @@
 extern "C" {
 #endif
 void detect_in_video(char *cfgfile, char *weightfile, float thresh, const char *video_filename, char *classes_names_file,
-                     int classes_count, float hier, char *json_output_file, int decrypt_weights);
+                     float hier, char *json_output_file, int decrypt_weights,
+                     const float * detectionTimeIntervalArray, int intervalCount);
 #ifdef __cplusplus
 }
 #endif

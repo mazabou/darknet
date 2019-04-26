@@ -13,6 +13,7 @@ void send_json(detection *dets, int nboxes, int classes, char **names, long long
 #ifdef OPENCV
 void send_mjpeg(mat_cv* mat, int port, int timeout, int quality);
 double get_cap_property(void * p, int property);
+double set_cap_property(void *p, int property, double val);
 
 #endif  // OPENCV
 

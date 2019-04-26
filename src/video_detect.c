@@ -16,6 +16,7 @@
 #endif
 
 #include <libgen.h>
+#include <limits.h>
 
 #ifdef OPENCV
 #include <opencv2/highgui/highgui_c.h>
@@ -65,8 +66,9 @@ struct detection_list_element{
     int nboxes;
 };
 struct detection_list_element * detection_list_head = NULL;
-static float video_width = 0;
-static float video_height = 0;
+static float video_width = 0.0;
+static float video_height = 0.0;
+static float video_fps = 0.0;
 
 void *fetch_frame_in_thread(void *ptr)
 {
@@ -261,15 +263,14 @@ void * feedDetectionListFromPreviousDets(){
 }
 
 void detect_in_video(char *cfgfile, char *weightfile, float thresh, const char *video_filename,
-                     char *classes_names_file, int classes_count, float hier_thresh, char *json_output_file, int decrypt_weights)
+                     char *classes_names_file, float hier_thresh, char *json_output_file, int decrypt_weights,
+                     const float * detectionTimeIntervalArray, const int intervalCount)
 {
     in_img = det_img = NULL;
-    IplImage* old_im = NULL;
     //skip = frame_skip;
     image **alphabet = load_alphabet();
     video_detect_names = get_labels(classes_names_file);
     video_detect_alphabet = alphabet;
-    video_detect_classes = classes_count;
     video_detect_thresh = thresh;
     printf("Video Detector\n");
     net = parse_network_cfg_custom(cfgfile, 1, 1);    // set batch=1
@@ -299,19 +300,37 @@ void detect_in_video(char *cfgfile, char *weightfile, float thresh, const char *
     }
     video_height = (float)get_cap_property(cap, CV_CAP_PROP_FRAME_HEIGHT);
     video_width = (float)get_cap_property(cap, CV_CAP_PROP_FRAME_WIDTH);
+    video_fps = (float)get_cap_property(cap, CV_CAP_PROP_FPS);
+
+    // convert time of detection into frames
+    int frameDetectionInterval[intervalCount*2];
+    for(int i=0 ; i<(intervalCount * 2) ; i++){
+        frameDetectionInterval[i] = (int)(video_fps * frameDetectionInterval[i]);
+    }
+    int currentDetectionIntervalIndex = 0;
+    int nextIntervalStart, nextIntervalEnd;
+    if(intervalCount > 0){
+        // if interval available setup the first one
+        nextIntervalStart = frameDetectionInterval[0];
+        nextIntervalEnd = frameDetectionInterval[1];
+    }
+    else if(intervalCount < 0){
+        // interval disabled, run the full video
+        nextIntervalStart = 0;
+        nextIntervalEnd = INT_MAX;
+    } else{
+        // if no interval, run nothing (but the first frames...)
+        nextIntervalStart = (int)get_cap_property(cap, CV_CAP_PROP_FRAME_COUNT);
+        nextIntervalEnd = INT_MAX;
+    }
 
     layer l = net.layers[net.n-1];
-    int j;
+    video_detect_classes = l.classes;
 
+//    int j;
 //    avg = (float *) calloc(l.outputs, sizeof(float));
 //    for(j = 0; j < NFRAMES; ++j) predictions[j] = (float *) calloc(l.outputs, sizeof(float));
 //    for(j = 0; j < NFRAMES; ++j) images[j] = make_image(1,1,3);
-
-    if (l.classes != video_detect_classes) {
-        printf("Parameters don't match: in cfg-file classes=%d, in data-file classes=%d \n", l.classes, video_detect_classes);
-        getchar();
-        exit(0);
-    }
 
     flag_video_end = 0;
     flag_detection_end = 0;
@@ -329,7 +348,6 @@ void detect_in_video(char *cfgfile, char *weightfile, float thresh, const char *
 
     fetch_frame_in_thread(0);
     detect_frame_in_thread(0);
-    old_im = det_img;
     det_img = in_img;
     det_s = in_s;
     previous_dets = dets;
@@ -348,35 +366,75 @@ void detect_in_video(char *cfgfile, char *weightfile, float thresh, const char *
     writer_args.weightsPath = weightfile;
     if(pthread_create(&write_thread, 0, write_in_thread, &writer_args)) error("Thread creation failed");
 
-    int count = 0;
+    int frameNumber = 1; // last image to be read was image number 1 (0 and 1 had been read)
 
     while(1){
-        ++count;
+        ++frameNumber;
         {
-            if(pthread_create(&fetch_thread, 0, fetch_frame_in_thread, 0)) error("Thread creation failed");
-            if(pthread_create(&detect_thread, 0, detect_frame_in_thread, 0)) error("Thread creation failed");
+            if(frameNumber < nextIntervalStart){
+                // handle previous image detection
+                feedDetectionListFromPreviousDets();
+                // start loading next frame for detection
+                set_cap_property(cap, CV_CAP_PROP_POS_FRAMES, (double)(nextIntervalStart-1));
+                if(pthread_create(&fetch_thread, 0, fetch_frame_in_thread, 0)) error("Thread creation failed");
+                for(; frameNumber<nextIntervalStart; frameNumber++){
+                    // add fake empty detection
+                    struct detection_list_element * new_detection;
+                    new_detection = (struct detection_list_element *) malloc(sizeof(struct detection_list_element));
+                    new_detection->next = NULL;
+                    new_detection->dets = NULL;
+                    new_detection->nboxes = 0;
+                    detection_list_head->next = new_detection;
+                    detection_list_head = new_detection;
+                }
+                // clean previous loaded image that were not used for detection
+                free_image(det_s);
+                release_mat(&det_img);
+                // join frame loading thread
+                pthread_join(fetch_thread, 0);
+                if (flag_video_end == 1) break;
+                // update prediction pointers
+                det_img = in_img;
+                det_s = in_s;
+            }
+            else{
+                if(pthread_create(&fetch_thread, 0, fetch_frame_in_thread, 0)) error("Thread creation failed");
+                if(pthread_create(&detect_thread, 0, detect_frame_in_thread, 0)) error("Thread creation failed");
 
-            // clear memory of previous frame
-            release_mat(&old_im);
+                //if we are at the end on the currrant section, setup the value for the next one
+                if(frameNumber > nextIntervalEnd) {
+                    currentDetectionIntervalIndex++;
+                    // if this was the last section set the value such as the rest of the video is filled with empty detection
+                    if (currentDetectionIntervalIndex >= intervalCount) {
+                        nextIntervalStart = (int) get_cap_property(cap, CV_CAP_PROP_FRAME_COUNT);
+                        nextIntervalEnd = INT_MAX;
+                    } else {
+                        nextIntervalStart = frameDetectionInterval[currentDetectionIntervalIndex * 2];
+                        nextIntervalEnd = frameDetectionInterval[currentDetectionIntervalIndex * 2 + 1];
+                    }
+                }
 
-            // add previous detection to the list
-            feedDetectionListFromPreviousDets();
+                // clear memory of previous frame
+                release_mat(&det_img);
 
-            int cur_time = ms_time();
-//            if (count % 8 == 0){
+                // add previous detection to the list if a detection was done on previous frame
+                if(frameNumber == nextIntervalStart) {
+                    feedDetectionListFromPreviousDets();
+                }
+
+                int cur_time = ms_time();
                 printf("\rFPS:%.2f  ",1e6/(double)(cur_time - detection_time + 1)); // prevent 0 div error
-//            }
-            detection_time = cur_time;
+                detection_time = cur_time;
 
-            pthread_join(fetch_thread, 0);
-            pthread_join(detect_thread, 0);
+                pthread_join(fetch_thread, 0);
+                pthread_join(detect_thread, 0);
 
-            if (flag_video_end == 1) break;
+                if (flag_video_end == 1) break;
 
-            old_im = det_img;
-            det_img = in_img;
-            det_s = in_s;
-            previous_dets = dets;
+                det_img = in_img; // in_img is the full size version of in_s, we don't need it here
+                det_s = in_s;
+                previous_dets = dets;
+            }
         }
     }
     printf("\ninput video stream closed. \n");
@@ -389,7 +447,7 @@ void detect_in_video(char *cfgfile, char *weightfile, float thresh, const char *
 
     // free memory
     free_detections(detection_list_head->dets, detection_list_head->nboxes);
-    release_mat(&old_im);
+    release_mat(&det_img);
     release_mat(&in_img);
     free_image(in_s);
 
@@ -397,10 +455,9 @@ void detect_in_video(char *cfgfile, char *weightfile, float thresh, const char *
 //    for (j = 0; j < NFRAMES; ++j) free(predictions[j]);
 //    for (j = 0; j < NFRAMES; ++j) free_image(images[j]);
 
-    int i;
     const int nsize = 8;
-    for (j = 0; j < nsize; ++j) {
-        for (i = 32; i < 127; ++i) {
+    for (int j = 0; j < nsize; ++j) {
+        for (int i = 32; i < 127; ++i) {
             free_image(alphabet[j][i]);
         }
         free(alphabet[j]);

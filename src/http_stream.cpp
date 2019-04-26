@@ -105,6 +105,11 @@ double get_cap_property(void * p, int property)
     auto cap = (VideoCapture *)p;
     return cap->get(property);
 }
+double set_cap_property(void * p, int property, double val)
+{
+    auto cap = (VideoCapture *)p;
+    return cap->set(property, val);
+}
 #endif
 
 class JSON_sender
