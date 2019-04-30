@@ -35,7 +35,7 @@ static image **video_detect_alphabet;
 static int video_detect_classes;
 
 static int nboxes = 0;
-static detection *dets = NULL, *previous_dets = NULL;
+static detection *dets = NULL, *previousDets = NULL;
 
 static network net;
 static image in_s ;
@@ -57,7 +57,7 @@ IplImage* in_img;
 IplImage* det_img;
 //IplImage* show_img;
 
-static int flag_video_end, flag_detection_end;
+static int flag_video_end, flagDetectionEnd;
 static int letter_box = 0;
 
 struct detection_list_element{
@@ -201,7 +201,7 @@ void *write_in_thread(void * raw_args)
 
     int frame_number = 0;
 
-    while(flag_detection_end != 1 || cur_element->next != NULL){
+    while(flagDetectionEnd != 1 || cur_element->next != NULL){
         if(cur_element->next == NULL){
             sleep(1); // if list already empty, sleep one second
         }
@@ -250,13 +250,13 @@ void * feedDetectionListFromPreviousDets(){
     const float nms = .45;    // 0.4F
     int local_nboxes = nboxes;
 
-    if (nms) do_nms_sort(previous_dets, local_nboxes, net.layers[net.n-1].classes, nms);
+    if (nms) do_nms_sort(previousDets, local_nboxes, net.layers[net.n-1].classes, nms);
 
     // add previous detection to the list
     struct detection_list_element * new_detection;
     new_detection = (struct detection_list_element *) malloc(sizeof(struct detection_list_element));
     new_detection->next = NULL;
-    new_detection->dets = previous_dets;
+    new_detection->dets = previousDets;
     new_detection->nboxes = local_nboxes;
     detection_list_head->next = new_detection;
     detection_list_head = new_detection;
@@ -301,7 +301,7 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
     video_height = (float)get_cap_property(cap, CV_CAP_PROP_FRAME_HEIGHT);
     video_width = (float)get_cap_property(cap, CV_CAP_PROP_FRAME_WIDTH);
     video_fps = (float)get_cap_property(cap, CV_CAP_PROP_FPS);
-    int video_frame_count = (int)get_cap_property(cap, CV_CAP_PROP_FRAME_COUNT);
+    int videoFrameCount = (int)get_cap_property(cap, CV_CAP_PROP_FRAME_COUNT);
 
     // convert time of detection into frames
     int frameDetectionInterval[intervalCount*2];
@@ -334,7 +334,7 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
 //    for(j = 0; j < NFRAMES; ++j) images[j] = make_image(1,1,3);
 
     flag_video_end = 0;
-    flag_detection_end = 0;
+    flagDetectionEnd = 0;
 
     pthread_t fetch_thread;
     pthread_t detect_thread;
@@ -351,7 +351,7 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
     detect_frame_in_thread(0);
     det_img = in_img;
     det_s = in_s;
-    previous_dets = dets;
+    previousDets = dets;
 
 //    for (j = 0; j < NFRAMES / 2; ++j) {
 //        fetch_frame_in_thread(0);
@@ -368,6 +368,7 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
     if(pthread_create(&write_thread, 0, write_in_thread, &writer_args)) error("Thread creation failed");
 
     int frameNumber = 1; // last image to be read was image number 1 (0 and 1 had been read)
+    int frameSkipped = 0;
 
     while(1){
         ++frameNumber;
@@ -376,8 +377,9 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                 // handle previous image detection
                 feedDetectionListFromPreviousDets();
                 // start loading next frame for detection
-                set_cap_property(cap, CV_CAP_PROP_POS_FRAMES, (double)(nextIntervalStart-1 < video_frame_count ? nextIntervalStart-1 : video_frame_count));
+                set_cap_property(cap, CV_CAP_PROP_POS_FRAMES, (double)(nextIntervalStart-1 < videoFrameCount ? nextIntervalStart-1 : videoFrameCount));
                 if(pthread_create(&fetch_thread, 0, fetch_frame_in_thread, 0)) error("Thread creation failed");
+                frameSkipped += nextIntervalStart - frameNumber - 1;
                 for(; frameNumber<nextIntervalStart; frameNumber++){
                     // add fake empty detection
                     struct detection_list_element * new_detection;
@@ -407,7 +409,7 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                     currentDetectionIntervalIndex++;
                     // if this was the last section set the value such as the rest of the video is filled with empty detection
                     if (currentDetectionIntervalIndex >= intervalCount) {
-                        nextIntervalStart = video_frame_count;
+                        nextIntervalStart = videoFrameCount;
                         nextIntervalEnd = INT_MAX;
                     } else {
                         nextIntervalStart = frameDetectionInterval[currentDetectionIntervalIndex * 2];
@@ -434,15 +436,18 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
 
                 det_img = in_img; // in_img is the full size version of in_s, we don't need it here
                 det_s = in_s;
-                previous_dets = dets;
+                previousDets = dets;
             }
         }
     }
     printf("\ninput video stream closed. \n");
     // process last detection
-    previous_dets = dets;
+    previousDets = dets;
     feedDetectionListFromPreviousDets();
-    flag_detection_end = 1;
+    flagDetectionEnd = 1;
+
+    printf("During this run, %d frames were skipped (%d%%)", frameSkipped, videoFrameCount * 100 / frameSkipped);
+
     pthread_join(write_thread, 0);
     printf("Write finished.\n");
 
