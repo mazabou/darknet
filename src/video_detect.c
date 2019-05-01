@@ -85,28 +85,16 @@ void *fetch_frame_in_thread(void *ptr)
         //exit(EXIT_FAILURE);
         return 0;
     }
-    //in_s = resize_image(in, net.w, net.h);
 
     return 0;
 }
 
 void *detect_frame_in_thread(void *ptr)
 {
-//    layer l = net.layers[net.n-1];
     float *X = det_s.data;
     float *prediction = network_predict(net, X);
 
-//    memcpy(predictions[video_detect_index], prediction, l.outputs*sizeof(float));
-//    mean_arrays(predictions, NFRAMES, l.outputs, avg);
-//    l.output = avg;
-
-//    printf("prefree3\n");
     free_image(det_s);
-//    printf("postfree3\n");
-
-//    ipl_images[video_detect_index] = det_img;
-//    det_img = ipl_images[(video_detect_index + NFRAMES / 2 + 1) % NFRAMES];
-//    video_detect_index = (video_detect_index + 1) % NFRAMES;
 
     if (letter_box)
         dets = get_network_boxes(&net, get_width_mat(in_img), get_height_mat(in_img), video_detect_thresh, video_detect_thresh, 0, 1, &nboxes, 1); // letter box
@@ -214,13 +202,10 @@ void *write_in_thread(void * raw_args)
             cur_element = cur_element->next;
 
             //clean old element:
-//            printf("prefree4\n");
             if(old_element->dets != NULL){
                 free_detections(old_element->dets, old_element->nboxes);
             }
-//            printf("postfree4-alpha\n");
             free(old_element);
-//            printf("postfree4\n");
 
             char rois[512] = "";
             char signs[4096] = "";
@@ -352,11 +337,6 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
     layer l = net.layers[net.n-1];
     video_detect_classes = l.classes;
 
-//    int j;
-//    avg = (float *) calloc(l.outputs, sizeof(float));
-//    for(j = 0; j < NFRAMES; ++j) predictions[j] = (float *) calloc(l.outputs, sizeof(float));
-//    for(j = 0; j < NFRAMES; ++j) images[j] = make_image(1,1,3);
-
     flag_video_end = 0;
     flagDetectionEnd = 0;
 
@@ -376,13 +356,6 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
     det_img = in_img;
     det_s = in_s;
 
-//    for (j = 0; j < NFRAMES / 2; ++j) {
-//        fetch_frame_in_thread(0);
-//        detect_frame_in_thread(0);
-//        det_img = in_img;
-//        det_s = in_s;
-//    }
-
     struct write_in_thread_args writer_args;
     writer_args.list_first_element = detection_list_head;
     writer_args.output_json_file = json_output_file;
@@ -399,19 +372,16 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
     while(1){
         ++frameNumber;
         {
-//            printf("loop\n");
             if(frameNumber < nextIntervalStart){
                 // handle previous image detection
                 feedDetectionListFromPreviousDets(nboxes, dets);
                 // start loading next frame for detection
                 set_cap_property(cap, CV_CAP_PROP_POS_FRAMES, (double)(nextIntervalStart-1 < videoFrameCount ? nextIntervalStart-1 : videoFrameCount));
-//                printf("start thread\n");
 #ifndef MULTITHREADING
                 fetch_frame_in_thread(0);
 #else
                 if(pthread_create(&fetch_thread, 0, fetch_frame_in_thread, 0)) error("Thread creation failed");
 #endif
-//                printf("skipping frames\n");
                 while(frameNumber<nextIntervalStart)
                 {
                     frameNumber++;
@@ -426,10 +396,8 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                     detection_list_head = new_detection;
                 }
                 // clean previous loaded image that were not used for detection
-//                printf("prefree\n");
                 free_image(det_s);
                 release_mat(&det_img);
-//                printf("postfree\n");
                 lastStepWasFakeDetection = 1;
                 // join frame loading thread
 #ifdef MULTITHREADING
@@ -439,7 +407,6 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                 // update prediction pointers
                 det_img = in_img;
                 det_s = in_s;
-//                printf("end\n");
             }
             else{
                 detection * previousDets = dets;
@@ -472,13 +439,12 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                 }
 
                 // clear memory of previous frame
-//                printf("prefree2\n");
                 release_mat(&det_img);
-//                printf("postfree2\n");
 
                 int cur_time = ms_time();
                 double fps = 1e6/(double)(cur_time - detection_time + 1);
-                printf("\rFPS:%.2f ETA:%.0fs      ",fps, (double)(videoFrameCount - frameNumber) / fps ); // prevent 0 div error
+                int remaningSeconds = (int)((double)(videoFrameCount - frameNumber) / fps));
+                printf("\rFPS:%.2f ETA: %02d min %02d s      ",fps, remaningSeconds / 60, remaningSeconds % 60 ); // prevent 0 div error
                 detection_time = cur_time;
 #ifdef MULTITHREADING
                 pthread_join(fetch_thread, 0);
@@ -497,7 +463,7 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
     }
     printf("\ninput video stream closed. \n");
     flagDetectionEnd = 1;
-    printf("During this run, %d frames were skipped (%d%%)\n", frameSkipped, frameSkipped * 100 / videoFrameCount );
+    printf("During this run %d frames were skipped (%d%%)\n", frameSkipped, frameSkipped * 100 / videoFrameCount );
 #ifndef MULTITHREADING
     write_in_thread(&writer_args);
 #else
@@ -509,11 +475,6 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
     free_detections(detection_list_head->dets, detection_list_head->nboxes);
     printf("Free detections.\n");
     free_image(in_s);
-//    printf("Free images.\n");
-
-//    free(avg);
-//    for (j = 0; j < NFRAMES; ++j) free(predictions[j]);
-//    for (j = 0; j < NFRAMES; ++j) free_image(images[j]);
 
     const int nsize = 8;
     for (int j = 0; j < nsize; ++j) {
@@ -522,11 +483,8 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
         }
         free(alphabet[j]);
     }
-//    printf("Free loop.\n");
     free(alphabet);
-//    printf("Free alpha.\n");
     free_network(net);
-//    printf("Free net.\n");
     //cudaProfilerStop();
 }
 #else
