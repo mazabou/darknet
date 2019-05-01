@@ -255,7 +255,12 @@ void * feedDetectionListFromPreviousDets(){
     int local_nboxes = nboxes;
 
     printf("nms\n");
-    if (nms) do_nms_sort(previousDets, local_nboxes, net.layers[net.n-1].classes, nms);
+    if (nms){
+        int classes_count = net.layers[net.n-1].classes;
+        printf("read\n");
+        printf("previousDets: %d", previousDets);
+        do_nms_sort(previousDets, local_nboxes, classes_count, nms);
+    }
 
     printf("append\n");
     // add previous detection to the list
