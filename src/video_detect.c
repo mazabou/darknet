@@ -28,6 +28,8 @@
 #include "http_stream.h"
 #include "../include/darknet.h"
 
+#define MULTITHREADING
+
 //image get_image_from_stream(CvCapture *cap);
 
 static char **video_detect_names;
