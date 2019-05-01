@@ -4,7 +4,7 @@
 
 int main(int argc, char** argv){
     if(argc != 7 && argc != 8){
-        printf("wrong argument count");
+        printf("wrong argument count, get %d arguments, while expecting 7 or 8.\n", argc);
         printf("expected: %s <config_file> <weights_file> <video_path> <classes_name_file> <out_put_json_file> <decrypt_weight(int)> [<threshold> = 0.5]\n", argv[0]);
         exit(1);
     }
