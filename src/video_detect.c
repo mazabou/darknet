@@ -35,7 +35,7 @@ static image **video_detect_alphabet;
 static int video_detect_classes;
 
 static int nboxes = 0;
-static detection *dets = NULL, *previousDets = NULL;
+static detection *dets = NULL;
 
 static network net;
 static image in_s ;
@@ -253,35 +253,21 @@ int ms_time()
     return (int)time.tv_sec * 1000000 + (int)time.tv_usec;
 }
 
-void * feedDetectionListFromPreviousDets(){
+void * feedDetectionListFromPreviousDets(int local_nboxes, detection *dets){
     const float nms = .45;    // 0.4F
-    int local_nboxes = nboxes;
 
-    printf("nms\n");
     if (nms){
-        int classes_count = net.layers[net.n-1].classes;
-        printf("read\n");
-        printf("previousDets: %d len: %d\n", previousDets, local_nboxes);
-        if(local_nboxes > 0){
-            detection det = previousDets[local_nboxes - 1];
-            printf("last? : %d\n", det.classes);
-        }
-        else {
-            printf("nothing\n");
-        }
-        do_nms_sort(previousDets, local_nboxes, classes_count, nms);
+        do_nms_sort(dets, local_nboxes, net.layers[net.n-1].classes, nms);
     }
 
-    printf("append\n");
     // add previous detection to the list
     struct detection_list_element * new_detection;
     new_detection = (struct detection_list_element *) malloc(sizeof(struct detection_list_element));
     new_detection->next = NULL;
-    new_detection->dets = previousDets;
+    new_detection->dets = dets;
     new_detection->nboxes = local_nboxes;
     detection_list_head->next = new_detection;
     detection_list_head = new_detection;
-    printf("done\n");
 }
 
 void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
@@ -387,7 +373,6 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
     detect_frame_in_thread(0);
     det_img = in_img;
     det_s = in_s;
-    previousDets = dets;
 
 //    for (j = 0; j < NFRAMES / 2; ++j) {
 //        fetch_frame_in_thread(0);
@@ -401,7 +386,9 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
     writer_args.output_json_file = json_output_file;
     writer_args.cap = cap;
     writer_args.weightsPath = weightfile;
-//    if(pthread_create(&write_thread, 0, write_in_thread, &writer_args)) error("Thread creation failed");
+#ifdef MULTITHREADING
+    if(pthread_create(&write_thread, 0, write_in_thread, &writer_args)) error("Thread creation failed");
+#endif
 
     int frameNumber = 1; // last image to be read was image number 1 (0 and 1 had been read)
     int frameSkipped = 0;
@@ -412,12 +399,15 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
             printf("loop\n");
             if(frameNumber < nextIntervalStart){
                 // handle previous image detection
-                feedDetectionListFromPreviousDets();
+                feedDetectionListFromPreviousDets(nboxes, dets);
                 // start loading next frame for detection
                 set_cap_property(cap, CV_CAP_PROP_POS_FRAMES, (double)(nextIntervalStart-1 < videoFrameCount ? nextIntervalStart-1 : videoFrameCount));
                 printf("start thread\n");
+#ifndef MULTITHREADING
                 fetch_frame_in_thread(0);
-//                if(pthread_create(&fetch_thread, 0, fetch_frame_in_thread, 0)) error("Thread creation failed");
+#else
+                if(pthread_create(&fetch_thread, 0, fetch_frame_in_thread, 0)) error("Thread creation failed");
+#endif
                 frameSkipped += nextIntervalStart - frameNumber - 1;
                 printf("skipping frames\n");
                 for(; frameNumber<nextIntervalStart; frameNumber++){
@@ -436,7 +426,9 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                 release_mat(&det_img);
                 printf("postfree\n");
                 // join frame loading thread
-//                pthread_join(fetch_thread, 0);
+#ifdef MULTITHREADING
+                pthread_join(fetch_thread, 0);
+#endif
                 if (flag_video_end == 1) break;
                 // update prediction pointers
                 det_img = in_img;
@@ -444,17 +436,18 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                 printf("end\n");
             }
             else{
-                printf("feed\n");
-                // add previous detection to the list if a detection was done on previous frame
-                if(frameNumber != nextIntervalStart) {
-                    feedDetectionListFromPreviousDets();
-                }
-                printf("threads\n");
-
+                detection * previousDets = dets;
+                int previousBoxes = nboxes;
+#ifndef MULTITHREADING
                 fetch_frame_in_thread(0);
                 detect_frame_in_thread(0);
-//                if(pthread_create(&fetch_thread, 0, fetch_frame_in_thread, 0)) error("Thread creation failed");
-//                if(pthread_create(&detect_thread, 0, detect_frame_in_thread, 0)) error("Thread creation failed");
+#else
+                if(pthread_create(&fetch_thread, 0, fetch_frame_in_thread, 0)) error("Thread creation failed");
+                if(pthread_create(&detect_thread, 0, detect_frame_in_thread, 0)) error("Thread creation failed");
+#endif
+                if(frameNumber != nextIntervalStart) {
+                    feedDetectionListFromPreviousDets(previousBoxes, previousDets);
+                }
 
                 //if we are at the end on the currrant section, setup the value for the next one
                 if(frameNumber > nextIntervalEnd) {
@@ -478,28 +471,29 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
 //                double fps = 1e6/(double)(cur_time - detection_time + 1);
 //                printf("\rFPS:%.2f ETA:%.0fs      ",fps, (double)(videoFrameCount - frameNumber) / fps ); // prevent 0 div error
 //                detection_time = cur_time;
-
-//                pthread_join(fetch_thread, 0);
-//                pthread_join(detect_thread, 0);
-
-                if (flag_video_end == 1) break;
+#ifdef MULTITHREADING
+                pthread_join(fetch_thread, 0);
+                pthread_join(detect_thread, 0);
+#endif
+                if (flag_video_end == 1) {
+                    // process last detection
+                    feedDetectionListFromPreviousDets(nboxes, dets);
+                    break;
+                }
 
                 det_img = in_img; // in_img is the full size version of in_s, we don't need it here
                 det_s = in_s;
-                previousDets = dets;
             }
         }
     }
     printf("\ninput video stream closed. \n");
-    // process last detection
-    previousDets = dets;
-    feedDetectionListFromPreviousDets();
     flagDetectionEnd = 1;
-
     printf("During this run, %d frames were skipped (%d%%)\n", frameSkipped, frameSkipped * 100 / videoFrameCount );
-
+#ifndef MULTITHREADING
     write_in_thread(&writer_args);
-//    pthread_join(write_thread, 0);
+#else
+    pthread_join(write_thread, 0);
+#endif
     printf("Write finished.\n");
 
     // free memory
