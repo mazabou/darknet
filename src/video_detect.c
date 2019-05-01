@@ -394,7 +394,7 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
             printf("loop\n");
             if(frameNumber < nextIntervalStart){
                 // handle previous image detection
-                feedDetectionListFromPreviousDets();
+//                feedDetectionListFromPreviousDets();
                 // start loading next frame for detection
                 set_cap_property(cap, CV_CAP_PROP_POS_FRAMES, (double)(nextIntervalStart-1 < videoFrameCount ? nextIntervalStart-1 : videoFrameCount));
                 printf("start thread\n");
@@ -450,9 +450,9 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                 printf("postfree2\n");
 
                 // add previous detection to the list if a detection was done on previous frame
-                if(frameNumber != nextIntervalStart) {
-                    feedDetectionListFromPreviousDets();
-                }
+//                if(frameNumber != nextIntervalStart) {
+//                    feedDetectionListFromPreviousDets();
+//                }
                 printf("feed\n");
 
 //                int cur_time = ms_time();
