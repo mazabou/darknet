@@ -392,6 +392,7 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
 
     int frameNumber = 1; // last image to be read was image number 1 (0 and 1 had been read)
     int frameSkipped = 0;
+    int lastStepWasFakeDetection = 0;
 
     while(1){
         ++frameNumber;
@@ -408,9 +409,11 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
 #else
                 if(pthread_create(&fetch_thread, 0, fetch_frame_in_thread, 0)) error("Thread creation failed");
 #endif
-                frameSkipped += nextIntervalStart - frameNumber - 1;
                 printf("skipping frames\n");
-                for(; frameNumber<nextIntervalStart; frameNumber++){
+                while(frameNumber<nextIntervalStart)
+                {
+                    frameNumber++;
+                    frameSkipped++;
                     // add fake empty detection
                     struct detection_list_element * new_detection;
                     new_detection = (struct detection_list_element *) malloc(sizeof(struct detection_list_element));
@@ -425,6 +428,7 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                 free_image(det_s);
                 release_mat(&det_img);
                 printf("postfree\n");
+                lastStepWasFakeDetection = 1;
                 // join frame loading thread
 #ifdef MULTITHREADING
                 pthread_join(fetch_thread, 0);
@@ -445,8 +449,11 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                 if(pthread_create(&fetch_thread, 0, fetch_frame_in_thread, 0)) error("Thread creation failed");
                 if(pthread_create(&detect_thread, 0, detect_frame_in_thread, 0)) error("Thread creation failed");
 #endif
-                if(frameNumber != nextIntervalStart) {
+                if(lastStepWasFakeDetection == 0) {
                     feedDetectionListFromPreviousDets(previousBoxes, previousDets);
+                }
+                else{
+                    lastStepWasFakeDetection = 0;
                 }
 
                 //if we are at the end on the currrant section, setup the value for the next one
