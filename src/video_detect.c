@@ -80,7 +80,7 @@ void *fetch_frame_in_thread(void *ptr)
     else
         in_s = get_image_from_stream_resize(cap, net.w, net.h, net.c, &in_img, dont_close_stream);
     if(!in_s.data){
-        printf("Stream closed.\n");
+//        printf("Stream closed.\n");
         flag_video_end = 1;
         //exit(EXIT_FAILURE);
         return 0;
@@ -441,11 +441,14 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                 // clear memory of previous frame
                 release_mat(&det_img);
 
-                int cur_time = ms_time();
-                double fps = 1e6/(double)(cur_time - detection_time + 1);
-                int remaningSeconds = (int)((double)(videoFrameCount - frameNumber) / fps);
-                printf("\rFPS:%.2f ETA: %02d min %02d s      ",fps, remaningSeconds / 60, remaningSeconds % 60 ); // prevent 0 div error
-                detection_time = cur_time;
+                if(frameNumber % 32 == 31){
+                    int cur_time = ms_time();
+                    double fps = 1e6/(double)(cur_time - detection_time + 1) * 32;
+                    int remaningSeconds = (int)((double)(videoFrameCount - frameNumber) / fps);
+                    printf("\rFPS:%.2f ETA: %02d min %02d s      ",fps, remaningSeconds / 60, remaningSeconds % 60 ); // prevent 0 div error
+                    detection_time = cur_time;
+                }
+
 #ifdef MULTITHREADING
                 pthread_join(fetch_thread, 0);
                 pthread_join(detect_thread, 0);
@@ -473,7 +476,6 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
 
     // free memory
     free_detections(detection_list_head->dets, detection_list_head->nboxes);
-    printf("Free detections.\n");
     free_image(in_s);
 
     const int nsize = 8;
