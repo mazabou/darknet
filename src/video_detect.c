@@ -391,8 +391,10 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                 feedDetectionListFromPreviousDets();
                 // start loading next frame for detection
                 set_cap_property(cap, CV_CAP_PROP_POS_FRAMES, (double)(nextIntervalStart-1 < videoFrameCount ? nextIntervalStart-1 : videoFrameCount));
+                printf("start thread\n");
                 if(pthread_create(&fetch_thread, 0, fetch_frame_in_thread, 0)) error("Thread creation failed");
                 frameSkipped += nextIntervalStart - frameNumber - 1;
+                printf("skipping frames\n");
                 for(; frameNumber<nextIntervalStart; frameNumber++){
                     // add fake empty detection
                     struct detection_list_element * new_detection;
@@ -404,14 +406,17 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                     detection_list_head = new_detection;
                 }
                 // clean previous loaded image that were not used for detection
+                printf("prefree\n");
                 free_image(det_s);
                 release_mat(&det_img);
+                printf("postfree\n");
                 // join frame loading thread
                 pthread_join(fetch_thread, 0);
                 if (flag_video_end == 1) break;
                 // update prediction pointers
                 det_img = in_img;
                 det_s = in_s;
+                printf("end\n");
             }
             else{
                 if(pthread_create(&fetch_thread, 0, fetch_frame_in_thread, 0)) error("Thread creation failed");
@@ -439,7 +444,7 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                 }
 
                 int cur_time = ms_time();
-                printf("\rFPS:%.2f  ",1e6/(double)(cur_time - detection_time + 1)); // prevent 0 div error
+//                printf("\rFPS:%.2f  ",1e6/(double)(cur_time - detection_time + 1)); // prevent 0 div error
                 detection_time = cur_time;
 
                 pthread_join(fetch_thread, 0);
