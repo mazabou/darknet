@@ -216,6 +216,7 @@ void *write_in_thread(void * raw_args)
             if(old_element->dets != NULL){
                 free_detections(old_element->dets, old_element->nboxes);
             }
+            printf("postfree4-alpha\n");
             free(old_element);
             printf("postfree4\n");
 
