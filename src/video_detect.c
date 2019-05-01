@@ -446,7 +446,7 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
     feedDetectionListFromPreviousDets();
     flagDetectionEnd = 1;
 
-    printf("During this run, %d frames were skipped (%d%%)", frameSkipped, frameSkipped * 100 / videoFrameCount );
+    printf("During this run, %d frames were skipped (%d%%)\n", frameSkipped, frameSkipped * 100 / videoFrameCount );
 
     pthread_join(write_thread, 0);
     printf("Write finished.\n");
