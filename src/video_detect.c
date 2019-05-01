@@ -324,6 +324,7 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
         nextIntervalStart = frameDetectionInterval[0];
         nextIntervalEnd = frameDetectionInterval[1];
         printf("%d intervals to run detection on in the video\n", intervalCount);
+        printf("first interval start at frame %d and end at %d\n", nextIntervalStart, nextIntervalEnd);
     }
     else if(intervalCount < 0){
         // interval disabled, run the full video
