@@ -443,7 +443,7 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
 
                 int cur_time = ms_time();
                 double fps = 1e6/(double)(cur_time - detection_time + 1);
-                int remaningSeconds = (int)((double)(videoFrameCount - frameNumber) / fps));
+                int remaningSeconds = (int)((double)(videoFrameCount - frameNumber) / fps);
                 printf("\rFPS:%.2f ETA: %02d min %02d s      ",fps, remaningSeconds / 60, remaningSeconds % 60 ); // prevent 0 div error
                 detection_time = cur_time;
 #ifdef MULTITHREADING
