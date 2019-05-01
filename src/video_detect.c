@@ -383,7 +383,7 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
     writer_args.output_json_file = json_output_file;
     writer_args.cap = cap;
     writer_args.weightsPath = weightfile;
-    if(pthread_create(&write_thread, 0, write_in_thread, &writer_args)) error("Thread creation failed");
+//    if(pthread_create(&write_thread, 0, write_in_thread, &writer_args)) error("Thread creation failed");
 
     int frameNumber = 1; // last image to be read was image number 1 (0 and 1 had been read)
     int frameSkipped = 0;
@@ -397,7 +397,8 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                 // start loading next frame for detection
                 set_cap_property(cap, CV_CAP_PROP_POS_FRAMES, (double)(nextIntervalStart-1 < videoFrameCount ? nextIntervalStart-1 : videoFrameCount));
                 printf("start thread\n");
-                if(pthread_create(&fetch_thread, 0, fetch_frame_in_thread, 0)) error("Thread creation failed");
+                fetch_frame_in_thread(0);
+//                if(pthread_create(&fetch_thread, 0, fetch_frame_in_thread, 0)) error("Thread creation failed");
                 frameSkipped += nextIntervalStart - frameNumber - 1;
                 printf("skipping frames\n");
                 for(; frameNumber<nextIntervalStart; frameNumber++){
@@ -416,7 +417,7 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                 release_mat(&det_img);
                 printf("postfree\n");
                 // join frame loading thread
-                pthread_join(fetch_thread, 0);
+//                pthread_join(fetch_thread, 0);
                 if (flag_video_end == 1) break;
                 // update prediction pointers
                 det_img = in_img;
@@ -424,8 +425,10 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                 printf("end\n");
             }
             else{
-                if(pthread_create(&fetch_thread, 0, fetch_frame_in_thread, 0)) error("Thread creation failed");
-                if(pthread_create(&detect_thread, 0, detect_frame_in_thread, 0)) error("Thread creation failed");
+                fetch_frame_in_thread(0);
+                detect_frame_in_thread(0);
+//                if(pthread_create(&fetch_thread, 0, fetch_frame_in_thread, 0)) error("Thread creation failed");
+//                if(pthread_create(&detect_thread, 0, detect_frame_in_thread, 0)) error("Thread creation failed");
 
                 //if we are at the end on the currrant section, setup the value for the next one
                 if(frameNumber > nextIntervalEnd) {
@@ -454,8 +457,8 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
 //                printf("\rFPS:%.2f  ",1e6/(double)(cur_time - detection_time + 1)); // prevent 0 div error
                 detection_time = cur_time;
 
-                pthread_join(fetch_thread, 0);
-                pthread_join(detect_thread, 0);
+//                pthread_join(fetch_thread, 0);
+//                pthread_join(detect_thread, 0);
 
                 if (flag_video_end == 1) break;
 
@@ -473,7 +476,8 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
 
     printf("During this run, %d frames were skipped (%d%%)\n", frameSkipped, frameSkipped * 100 / videoFrameCount );
 
-    pthread_join(write_thread, 0);
+    write_in_thread(&writer_args);
+//    pthread_join(write_thread, 0);
     printf("Write finished.\n");
 
     // free memory
