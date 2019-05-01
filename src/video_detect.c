@@ -254,20 +254,20 @@ void * feedDetectionListFromPreviousDets(){
     const float nms = .45;    // 0.4F
     int local_nboxes = nboxes;
 
-    printf("nms\n");
-    if (nms){
-        int classes_count = net.layers[net.n-1].classes;
-        printf("read\n");
-        printf("previousDets: %d\n", previousDets);
-        if(local_nboxes > 0){
-            detection det = previousDets[local_nboxes - 1];
-            printf("last? : %d\n", det.classes);
-        }
-        else {
-            printf("nothing\n");
-        }
-        do_nms_sort(previousDets, local_nboxes, classes_count, nms);
-    }
+//    printf("nms\n");
+//    if (nms){
+//        int classes_count = net.layers[net.n-1].classes;
+//        printf("read\n");
+//        printf("previousDets: %d len: %d\n", previousDets, local_nboxes);
+//        if(local_nboxes > 0){
+//            detection det = previousDets[local_nboxes - 1];
+//            printf("last? : %d\n", det.classes);
+//        }
+//        else {
+//            printf("nothing\n");
+//        }
+//        do_nms_sort(previousDets, local_nboxes, classes_count, nms);
+//    }
 
     printf("append\n");
     // add previous detection to the list
