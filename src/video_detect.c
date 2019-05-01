@@ -213,7 +213,9 @@ void *write_in_thread(void * raw_args)
 
             //clean old element:
             printf("prefree4\n");
-            free_detections(old_element->dets, old_element->nboxes);
+            if(old_element->dets != NULL){
+                free_detections(old_element->dets, old_element->nboxes);
+            }
             free(old_element);
             printf("postfree4\n");
 
@@ -471,10 +473,9 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                 release_mat(&det_img);
                 printf("postfree2\n");
 
-
-
 //                int cur_time = ms_time();
-//                printf("\rFPS:%.2f  ",1e6/(double)(cur_time - detection_time + 1)); // prevent 0 div error
+//                double fps = 1e6/(double)(cur_time - detection_time + 1);
+//                printf("\rFPS:%.2f ETA:%.0fs      ",fps, (double)(videoFrameCount - frameNumber) / fps ); // prevent 0 div error
 //                detection_time = cur_time;
 
 //                pthread_join(fetch_thread, 0);
