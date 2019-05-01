@@ -502,7 +502,9 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
 
     // free memory
     free_detections(detection_list_head->dets, detection_list_head->nboxes);
+    printf("Free detections.\n");
     free_image(in_s);
+    printf("Free images.\n");
 
 //    free(avg);
 //    for (j = 0; j < NFRAMES; ++j) free(predictions[j]);
@@ -515,8 +517,11 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
         }
         free(alphabet[j]);
     }
+    printf("Free loop.\n");
     free(alphabet);
+    printf("Free alpha.\n");
     free_network(net);
+    printf("Free net.\n");
     //cudaProfilerStop();
 }
 #else
