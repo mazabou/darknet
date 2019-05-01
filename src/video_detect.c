@@ -264,7 +264,7 @@ void * feedDetectionListFromPreviousDets(){
 
 void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                      char *classes_names_file, float thresh, float hier, char *json_output_file, int decrypt_weights,
-                     const float * detectionTimeIntervalArray, const int intervalCount)
+                     const float * detectionTimeIntervalArray, int intervalCount)
 {
     in_img = det_img = NULL;
     //skip = frame_skip;
@@ -307,6 +307,15 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
     int frameDetectionInterval[intervalCount*2];
     for(int i=0 ; i<(intervalCount * 2) ; i++){
         frameDetectionInterval[i] = (int)(video_fps * frameDetectionInterval[i]);
+        if(frameDetectionInterval[i] > videoFrameCount){
+            if(i % 2 == 0){
+                intervalCount = i / 2;
+            }
+            else{
+                intervalCount = i / 2 + 1;
+            }
+            break;
+        }
     }
     int currentDetectionIntervalIndex = 0;
     int nextIntervalStart, nextIntervalEnd;
@@ -314,15 +323,18 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
         // if interval available setup the first one
         nextIntervalStart = frameDetectionInterval[0];
         nextIntervalEnd = frameDetectionInterval[1];
+        printf("%d intervals to run detection on in the video\n", intervalCount);
     }
     else if(intervalCount < 0){
         // interval disabled, run the full video
         nextIntervalStart = 0;
         nextIntervalEnd = INT_MAX;
+        printf("Intervals disabled, running on every frame\n");
     } else{
         // if no interval, run nothing (but the first frames...)
         nextIntervalStart = (int)get_cap_property(cap, CV_CAP_PROP_FRAME_COUNT);
         nextIntervalEnd = INT_MAX;
+        printf("No intervals, running nothing\n");
     }
 
     layer l = net.layers[net.n-1];
@@ -408,7 +420,7 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                 if(frameNumber > nextIntervalEnd) {
                     currentDetectionIntervalIndex++;
                     // if this was the last section set the value such as the rest of the video is filled with empty detection
-                    if (currentDetectionIntervalIndex >= intervalCount) {
+                    if (currentDetectionIntervalIndex >= intervalCount || videoFrameCount < frameDetectionInterval[currentDetectionIntervalIndex * 2]) {
                         nextIntervalStart = videoFrameCount;
                         nextIntervalEnd = INT_MAX;
                     } else {
