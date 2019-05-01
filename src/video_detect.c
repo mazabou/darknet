@@ -270,6 +270,7 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                      char *classes_names_file, float thresh, float hier, char *json_output_file, int decrypt_weights,
                      const float * detectionTimeIntervalArray, int intervalCount)
 {
+    setbuf(stdout, NULL);
     in_img = det_img = NULL;
     //skip = frame_skip;
     image **alphabet = load_alphabet();
