@@ -306,7 +306,7 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
     // convert time of detection into frames
     int frameDetectionInterval[intervalCount*2];
     for(int i=0 ; i<(intervalCount * 2) ; i++){
-        frameDetectionInterval[i] = (int)(video_fps * frameDetectionInterval[i]);
+        frameDetectionInterval[i] = (int)(video_fps * detectionTimeIntervalArray[i]);
         if(frameDetectionInterval[i] > videoFrameCount){
             if(i % 2 == 0){
                 intervalCount = i / 2;
