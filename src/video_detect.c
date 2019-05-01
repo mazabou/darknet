@@ -254,8 +254,10 @@ void * feedDetectionListFromPreviousDets(){
     const float nms = .45;    // 0.4F
     int local_nboxes = nboxes;
 
+    printf("nms\n");
     if (nms) do_nms_sort(previousDets, local_nboxes, net.layers[net.n-1].classes, nms);
 
+    printf("append\n");
     // add previous detection to the list
     struct detection_list_element * new_detection;
     new_detection = (struct detection_list_element *) malloc(sizeof(struct detection_list_element));
@@ -264,6 +266,7 @@ void * feedDetectionListFromPreviousDets(){
     new_detection->nboxes = local_nboxes;
     detection_list_head->next = new_detection;
     detection_list_head = new_detection;
+    printf("done\n");
 }
 
 void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
@@ -394,7 +397,7 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
             printf("loop\n");
             if(frameNumber < nextIntervalStart){
                 // handle previous image detection
-//                feedDetectionListFromPreviousDets();
+                feedDetectionListFromPreviousDets();
                 // start loading next frame for detection
                 set_cap_property(cap, CV_CAP_PROP_POS_FRAMES, (double)(nextIntervalStart-1 < videoFrameCount ? nextIntervalStart-1 : videoFrameCount));
                 printf("start thread\n");
@@ -450,9 +453,9 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                 printf("postfree2\n");
 
                 // add previous detection to the list if a detection was done on previous frame
-//                if(frameNumber != nextIntervalStart) {
-//                    feedDetectionListFromPreviousDets();
-//                }
+                if(frameNumber != nextIntervalStart) {
+                    feedDetectionListFromPreviousDets();
+                }
                 printf("feed\n");
 
 //                int cur_time = ms_time();
