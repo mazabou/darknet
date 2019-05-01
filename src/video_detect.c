@@ -258,7 +258,14 @@ void * feedDetectionListFromPreviousDets(){
     if (nms){
         int classes_count = net.layers[net.n-1].classes;
         printf("read\n");
-        printf("previousDets: %d", previousDets);
+        printf("previousDets: %d\n", previousDets);
+        if(local_nboxes > 0){
+            detection det = previousDets[local_nboxes - 1];
+            printf("last? : %d\n", det.classes);
+        }
+        else {
+            printf("nothing\n");
+        }
         do_nms_sort(previousDets, local_nboxes, classes_count, nms);
     }
 
