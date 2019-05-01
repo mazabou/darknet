@@ -254,20 +254,20 @@ void * feedDetectionListFromPreviousDets(){
     const float nms = .45;    // 0.4F
     int local_nboxes = nboxes;
 
-//    printf("nms\n");
-//    if (nms){
-//        int classes_count = net.layers[net.n-1].classes;
-//        printf("read\n");
-//        printf("previousDets: %d len: %d\n", previousDets, local_nboxes);
-//        if(local_nboxes > 0){
-//            detection det = previousDets[local_nboxes - 1];
-//            printf("last? : %d\n", det.classes);
-//        }
-//        else {
-//            printf("nothing\n");
-//        }
-//        do_nms_sort(previousDets, local_nboxes, classes_count, nms);
-//    }
+    printf("nms\n");
+    if (nms){
+        int classes_count = net.layers[net.n-1].classes;
+        printf("read\n");
+        printf("previousDets: %d len: %d\n", previousDets, local_nboxes);
+        if(local_nboxes > 0){
+            detection det = previousDets[local_nboxes - 1];
+            printf("last? : %d\n", det.classes);
+        }
+        else {
+            printf("nothing\n");
+        }
+        do_nms_sort(previousDets, local_nboxes, classes_count, nms);
+    }
 
     printf("append\n");
     // add previous detection to the list
@@ -441,6 +441,13 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                 printf("end\n");
             }
             else{
+                printf("feed\n");
+                // add previous detection to the list if a detection was done on previous frame
+                if(frameNumber != nextIntervalStart) {
+                    feedDetectionListFromPreviousDets();
+                }
+                printf("threads\n");
+
                 fetch_frame_in_thread(0);
                 detect_frame_in_thread(0);
 //                if(pthread_create(&fetch_thread, 0, fetch_frame_in_thread, 0)) error("Thread creation failed");
@@ -464,11 +471,7 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                 release_mat(&det_img);
                 printf("postfree2\n");
 
-                // add previous detection to the list if a detection was done on previous frame
-                if(frameNumber != nextIntervalStart) {
-                    feedDetectionListFromPreviousDets();
-                }
-                printf("feed\n");
+
 
 //                int cur_time = ms_time();
 //                printf("\rFPS:%.2f  ",1e6/(double)(cur_time - detection_time + 1)); // prevent 0 div error
