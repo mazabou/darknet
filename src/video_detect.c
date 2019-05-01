@@ -391,6 +391,7 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
     while(1){
         ++frameNumber;
         {
+            printf("loop\n");
             if(frameNumber < nextIntervalStart){
                 // handle previous image detection
                 feedDetectionListFromPreviousDets();
@@ -452,10 +453,11 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                 if(frameNumber != nextIntervalStart) {
                     feedDetectionListFromPreviousDets();
                 }
+                printf("feed\n");
 
-                int cur_time = ms_time();
+//                int cur_time = ms_time();
 //                printf("\rFPS:%.2f  ",1e6/(double)(cur_time - detection_time + 1)); // prevent 0 div error
-                detection_time = cur_time;
+//                detection_time = cur_time;
 
 //                pthread_join(fetch_thread, 0);
 //                pthread_join(detect_thread, 0);
