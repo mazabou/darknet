@@ -98,7 +98,9 @@ void *detect_frame_in_thread(void *ptr)
 //    mean_arrays(predictions, NFRAMES, l.outputs, avg);
 //    l.output = avg;
 
+    printf("prefree3\n");
     free_image(det_s);
+    printf("postfree3\n");
 
 //    ipl_images[video_detect_index] = det_img;
 //    det_img = ipl_images[(video_detect_index + NFRAMES / 2 + 1) % NFRAMES];
@@ -210,8 +212,10 @@ void *write_in_thread(void * raw_args)
             cur_element = cur_element->next;
 
             //clean old element:
+            printf("prefree4\n");
             free_detections(old_element->dets, old_element->nboxes);
             free(old_element);
+            printf("postfree4\n");
 
             char rois[512] = "";
             char signs[4096] = "";
@@ -436,7 +440,9 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                 }
 
                 // clear memory of previous frame
+                printf("prefree2\n");
                 release_mat(&det_img);
+                printf("postfree2\n");
 
                 // add previous detection to the list if a detection was done on previous frame
                 if(frameNumber != nextIntervalStart) {
