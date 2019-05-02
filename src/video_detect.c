@@ -376,13 +376,13 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                 // handle previous image detection
                 feedDetectionListFromPreviousDets(nboxes, dets);
                 // start loading next frame for detection
-                set_cap_property(cap, CV_CAP_PROP_POS_FRAMES, (double)(nextIntervalStart-2));
+                set_cap_property(cap, CV_CAP_PROP_POS_FRAMES, (double)(nextIntervalStart-1));
 #ifndef MULTITHREADING
                 fetch_frame_in_thread(0);
 #else
                 if(pthread_create(&fetch_thread, 0, fetch_frame_in_thread, 0)) error("Thread creation failed");
 #endif
-                while(frameNumber<=nextIntervalStart)
+                while(frameNumber<nextIntervalStart)
                 {
                     frameNumber++;
                     frameSkipped++;
@@ -395,6 +395,7 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                     detection_list_head->next = new_detection;
                     detection_list_head = new_detection;
                 }
+                frameNumber--;
                 // clean previous loaded image that were not used for detection
                 free_image(det_s);
                 release_mat(&det_img);
