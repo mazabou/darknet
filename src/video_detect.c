@@ -382,7 +382,7 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
 #else
                 if(pthread_create(&fetch_thread, 0, fetch_frame_in_thread, 0)) error("Thread creation failed");
 #endif
-                while(frameNumber<nextIntervalStart)
+                while(frameNumber<=nextIntervalStart)
                 {
                     frameNumber++;
                     frameSkipped++;
