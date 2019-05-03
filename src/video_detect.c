@@ -30,10 +30,7 @@
 
 #define MULTITHREADING
 
-//image get_image_from_stream(CvCapture *cap);
-
 static char **video_detect_names;
-static image **video_detect_alphabet;
 static int video_detect_classes;
 
 static int nboxes = 0;
@@ -43,21 +40,7 @@ static network net;
 static image in_s ;
 static image det_s;
 static CvCapture * cap;
-static int cpp_video_capture = 0;
 static float video_detect_thresh = 0;
-
-//static float* predictions[NFRAMES];
-//static int video_detect_index = 0;
-//static image images[NFRAMES];
-//static IplImage* ipl_images[NFRAMES];
-//static float *avg;
-
-//image get_image_from_stream_resize(CvCapture *cap, int w, int h, int c, IplImage** in_img, int cpp_video_capture, int dont_close);
-//image get_image_from_stream_letterbox(CvCapture *cap, int w, int h, int c, IplImage** in_img, int cpp_video_capture, int dont_close);
-
-IplImage* in_img;
-IplImage* det_img;
-//IplImage* show_img;
 
 static int flag_video_end, flagDetectionEnd;
 static int letter_box = 0;
@@ -72,19 +55,26 @@ static float video_width = 0.0;
 static float video_height = 0.0;
 static float video_fps = 0.0;
 
+static int letterbox_image_width, letterbox_image_height;
+
 void *fetch_frame_in_thread(void *ptr)
 {
+    IplImage* in_img;
     int dont_close_stream = 0;    // set 1 if your IP-camera periodically turns off and turns on video-stream
-    if(letter_box)
+    if(letter_box){
         in_s = get_image_from_stream_letterbox(cap, net.w, net.h, net.c, &in_img, dont_close_stream);
-    else
+        letterbox_image_height = get_height_mat(in_img);
+        letterbox_image_width = get_width_mat(in_img);
+    }else {
         in_s = get_image_from_stream_resize(cap, net.w, net.h, net.c, &in_img, dont_close_stream);
+    }
     if(!in_s.data){
-//        printf("Stream closed.\n");
         flag_video_end = 1;
         //exit(EXIT_FAILURE);
         return 0;
     }
+    //clean unused full frame image
+    release_mat(&in_img);
 
     return 0;
 }
@@ -97,7 +87,7 @@ void *detect_frame_in_thread(void *ptr)
     free_image(det_s);
 
     if (letter_box)
-        dets = get_network_boxes(&net, get_width_mat(in_img), get_height_mat(in_img), video_detect_thresh, video_detect_thresh, 0, 1, &nboxes, 1); // letter box
+        dets = get_network_boxes(&net, letterbox_image_width, letterbox_image_height, video_detect_thresh, video_detect_thresh, 0, 1, &nboxes, 1); // letter box
     else
         dets = get_network_boxes(&net, net.w, net.h, video_detect_thresh, video_detect_thresh, 0, 1, &nboxes, 0); // resized
 
@@ -262,11 +252,7 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                      const float * detectionTimeIntervalArray, int intervalCount)
 {
     setbuf(stdout, NULL);
-    in_img = det_img = NULL;
-    //skip = frame_skip;
-    image **alphabet = load_alphabet();
     video_detect_names = get_labels(classes_names_file);
-    video_detect_alphabet = alphabet;
     video_detect_thresh = thresh;
     printf("Video Detector\n");
     net = parse_network_cfg_custom(cfgfile, 1, 1);    // set batch=1
@@ -285,7 +271,6 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
     srand(2222222);
 
     printf("video file: %s\n", video_filename);
-    cpp_video_capture = 1;
     cap = get_capture_video_stream(video_filename);
 
     if (!cap) {
@@ -347,13 +332,11 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
     int detection_time = ms_time();
 
     fetch_frame_in_thread(0);
-    det_img = in_img;
     det_s = in_s;
 
 
     fetch_frame_in_thread(0);
     detect_frame_in_thread(0);
-    det_img = in_img;
     det_s = in_s;
 
     struct write_in_thread_args writer_args;
@@ -398,7 +381,6 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                 frameNumber--;
                 // clean previous loaded image that were not used for detection
                 free_image(det_s);
-                release_mat(&det_img);
                 lastStepWasFakeDetection = 1;
                 // join frame loading thread
 #ifdef MULTITHREADING
@@ -406,7 +388,6 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
 #endif
                 if (flag_video_end == 1) break;
                 // update prediction pointers
-                det_img = in_img;
                 det_s = in_s;
             }
             else{
@@ -439,9 +420,6 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                     }
                 }
 
-                // clear memory of previous frame
-                release_mat(&det_img);
-
                 if(frameNumber % 32 == 31){
                     int cur_time = ms_time();
                     double fps = 1e6/(double)(cur_time - detection_time + 1) * 32;
@@ -460,7 +438,6 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
                     break;
                 }
 
-                det_img = in_img; // in_img is the full size version of in_s, we don't need it here
                 det_s = in_s;
             }
         }
@@ -479,14 +456,6 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
     free_detections(detection_list_head->dets, detection_list_head->nboxes);
     free_image(in_s);
 
-    const int nsize = 8;
-    for (int j = 0; j < nsize; ++j) {
-        for (int i = 32; i < 127; ++i) {
-            free_image(alphabet[j][i]);
-        }
-        free(alphabet[j]);
-    }
-    free(alphabet);
     free_network(net);
     //cudaProfilerStop();
 }
