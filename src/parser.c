@@ -1000,6 +1000,27 @@ void save_convolutional_weights(layer l, FILE *fp)
     //}
 }
 
+void save_convolutional_weights_encrypt(layer l, FILE *fp)
+{
+    if(l.binary){
+        //save_convolutional_weights_binary(l, fp);
+        //return;
+    }
+#ifdef GPU
+    if(gpu_index >= 0){
+        pull_convolutional_layer(l);
+    }
+#endif
+    int num = l.nweights;
+    write_encrypt_float(l.biases, l.n, fp);
+    if (l.batch_normalize){
+        write_encrypt_float(l.scales, l.n, fp);
+        write_encrypt_float(l.rolling_mean, l.n, fp);
+        write_encrypt_float(l.rolling_variance, l.n, fp);
+    }
+    write_encrypt_float(l.weights, num, fp);
+}
+
 void save_batchnorm_weights(layer l, FILE *fp)
 {
 #ifdef GPU
@@ -1028,7 +1049,7 @@ void save_connected_weights(layer l, FILE *fp)
     }
 }
 
-void save_weights_upto(network net, char *filename, int cutoff)
+void save_weights_upto_encrypt(network net, char *filename, int cutoff, int encrypt)
 {
 #ifdef GPU
     if(net.gpu_index >= 0){
@@ -1051,7 +1072,13 @@ void save_weights_upto(network net, char *filename, int cutoff)
     for(i = 0; i < net.n && i < cutoff; ++i){
         layer l = net.layers[i];
         if(l.type == CONVOLUTIONAL){
-            save_convolutional_weights(l, fp);
+            if(encrypt){
+                save_convolutional_weights_encrypt(l, fp);
+            }
+            else
+            {
+                save_convolutional_weights(l, fp);
+            }
         } if(l.type == CONNECTED){
             save_connected_weights(l, fp);
         } if(l.type == BATCHNORM){
@@ -1077,9 +1104,17 @@ void save_weights_upto(network net, char *filename, int cutoff)
             save_connected_weights(*(l.ug), fp);
             save_connected_weights(*(l.uo), fp);
         } if(l.type == CRNN){
-            save_convolutional_weights(*(l.input_layer), fp);
-            save_convolutional_weights(*(l.self_layer), fp);
-            save_convolutional_weights(*(l.output_layer), fp);
+            if(encrypt){
+                save_convolutional_weights_encrypt(*(l.input_layer), fp);
+                save_convolutional_weights_encrypt(*(l.self_layer), fp);
+                save_convolutional_weights_encrypt(*(l.output_layer), fp);
+            }
+            else
+            {
+                save_convolutional_weights(*(l.input_layer), fp);
+                save_convolutional_weights(*(l.self_layer), fp);
+                save_convolutional_weights(*(l.output_layer), fp);
+            }
         } if(l.type == LOCAL){
 #ifdef GPU
             if(gpu_index >= 0){
@@ -1094,9 +1129,17 @@ void save_weights_upto(network net, char *filename, int cutoff)
     }
     fclose(fp);
 }
+void save_weights_upto(network net, char *filename, int cutoff)
+{
+    save_weights_upto_encrypt(net, filename, cutoff, 0);
+}
 void save_weights(network net, char *filename)
 {
     save_weights_upto(net, filename, net.n);
+}
+void save_weights_encrypt(network net, char *filename, int encrypt)
+{
+    save_weights_upto_encrypt(net, filename, net.n, encrypt);
 }
 
 void transpose_matrix(float *a, int rows, int cols)
@@ -1178,6 +1221,101 @@ void load_convolutional_weights_binary(layer l, FILE *fp)
 #endif
 }
 
+
+
+
+/*** Weights obfuscation code ***/
+// this is not encryption and is very stupid... but I have been paid to do that
+// It's supposed to prevent the client to use our weights in an other application but the client will have access to
+// this source code and the compiled shared library that include decrypt function... (obviously we could use key and do
+// real encryption, but quick and dirty is requested)
+
+#define ENCRYPTION_FUNCTION_ARRAY_LENGTH 4
+
+float divide_by_two(float v){
+    return v * 0.5f;
+}
+float multiply_by_two(float v){
+    return v * 2.0f;
+}
+float unity(float v){
+    return v;
+}
+float change_sign(float v){
+    return -v;
+}
+
+typedef float (*crypt_function)(float);
+static const crypt_function ENCRYPTION_ARRAY[ENCRYPTION_FUNCTION_ARRAY_LENGTH] = {&divide_by_two, &change_sign, &multiply_by_two, &unity};
+static const crypt_function DECRYPTION_ARRAY[ENCRYPTION_FUNCTION_ARRAY_LENGTH] = {&multiply_by_two, &change_sign, &divide_by_two, &unity};
+
+void write_encrypt_float(float * array, unsigned array_length, FILE * fp)
+{
+    float * encrypted_array = (float *)malloc(sizeof(float) * array_length);
+    for(unsigned i=0 ; i<array_length ; ++i)
+    {
+        encrypted_array[i] = ENCRYPTION_ARRAY[i % ENCRYPTION_FUNCTION_ARRAY_LENGTH](array[i]);
+    }
+    fwrite(encrypted_array, sizeof(float), array_length, fp);
+    free(encrypted_array);
+}
+
+void read_encrypt_float(float * array, unsigned array_length, FILE * fp)
+{
+    fread(array, sizeof(float), array_length, fp);
+    for(unsigned i=0 ; i<array_length ; ++i)
+    {
+        array[i] = DECRYPTION_ARRAY[i % ENCRYPTION_FUNCTION_ARRAY_LENGTH](array[i]);
+    }
+}
+
+void load_convolutional_weights_decrypt(layer l, FILE *fp)
+{
+    if(l.binary){
+        //load_convolutional_weights_binary(l, fp);
+        //return;
+    }
+    int num = l.n*l.c*l.size*l.size;
+    read_encrypt_float(l.biases, l.n, fp);
+    //fread(l.weights, sizeof(float), num, fp); // as in connected layer
+    if (l.batch_normalize && (!l.dontloadscales)){
+        read_encrypt_float(l.scales, l.n, fp);
+        read_encrypt_float(l.rolling_mean, l.n, fp);
+        read_encrypt_float(l.rolling_variance, l.n, fp);
+        if(0){
+            int i;
+            for(i = 0; i < l.n; ++i){
+                printf("%g, ", l.rolling_mean[i]);
+            }
+            printf("\n");
+            for(i = 0; i < l.n; ++i){
+                printf("%g, ", l.rolling_variance[i]);
+            }
+            printf("\n");
+        }
+        if(0){
+            fill_cpu(l.n, 0, l.rolling_mean, 1);
+            fill_cpu(l.n, 0, l.rolling_variance, 1);
+        }
+    }
+    read_encrypt_float(l.weights, num, fp);
+    //if(l.adam){
+    //    fread(l.m, sizeof(float), num, fp);
+    //    fread(l.v, sizeof(float), num, fp);
+    //}
+    //if(l.c == 3) scal_cpu(num, 1./256, l.weights, 1);
+    if (l.flipped) {
+        transpose_matrix(l.weights, l.c*l.size*l.size, l.n);
+    }
+    //if (l.binary) binarize_weights(l.weights, l.n, l.c*l.size*l.size, l.weights);
+#ifdef GPU
+    if(gpu_index >= 0){
+        push_convolutional_layer(l);
+    }
+#endif
+}
+
+
 void load_convolutional_weights(layer l, FILE *fp)
 {
     if(l.binary){
@@ -1225,7 +1363,7 @@ void load_convolutional_weights(layer l, FILE *fp)
 }
 
 
-void load_weights_upto(network *net, char *filename, int cutoff)
+void load_weights_upto_decrypt(network *net, char *filename, int cutoff, int decrypt)
 {
 #ifdef GPU
     if(net->gpu_index >= 0){
@@ -1262,7 +1400,12 @@ void load_weights_upto(network *net, char *filename, int cutoff)
         layer l = net->layers[i];
         if (l.dontload) continue;
         if(l.type == CONVOLUTIONAL){
-            load_convolutional_weights(l, fp);
+            if(decrypt){
+                load_convolutional_weights_decrypt(l, fp);
+            }
+            else{
+                load_convolutional_weights(l, fp);
+            }
         }
         if(l.type == CONNECTED){
             load_connected_weights(l, fp, transpose);
@@ -1271,9 +1414,16 @@ void load_weights_upto(network *net, char *filename, int cutoff)
             load_batchnorm_weights(l, fp);
         }
         if(l.type == CRNN){
-            load_convolutional_weights(*(l.input_layer), fp);
-            load_convolutional_weights(*(l.self_layer), fp);
-            load_convolutional_weights(*(l.output_layer), fp);
+            if(decrypt){
+                load_convolutional_weights_decrypt(*(l.input_layer), fp);
+                load_convolutional_weights_decrypt(*(l.self_layer), fp);
+                load_convolutional_weights_decrypt(*(l.output_layer), fp);
+            }
+            else {
+                load_convolutional_weights(*(l.input_layer), fp);
+                load_convolutional_weights(*(l.self_layer), fp);
+                load_convolutional_weights(*(l.output_layer), fp);
+            }
         }
         if(l.type == RNN){
             load_connected_weights(*(l.input_layer), fp, transpose);
@@ -1314,9 +1464,19 @@ void load_weights_upto(network *net, char *filename, int cutoff)
     fclose(fp);
 }
 
+void load_weights_upto(network *net, char *filename, int cutoff)
+{
+    load_weights_upto_decrypt(net, filename, cutoff, 0);
+}
+
 void load_weights(network *net, char *filename)
 {
     load_weights_upto(net, filename, net->n);
+}
+
+void load_weights_decrypt(network *net, char *filename, int decrypt)
+{
+    load_weights_upto_decrypt(net, filename, net->n, decrypt);
 }
 
 // load network & force - set batch size

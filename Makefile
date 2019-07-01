@@ -147,6 +147,12 @@ $(EXEC): $(OBJS)
 video_runner: $(OBJDIR)video_runner.o $(ALIB)
 	$(CPP) $(COMMON) $(CFLAGS) $^ -o $@ $(LDFLAGS) $(ALIB)
 
+encryptor: $(OBJDIR)encrypt_weights.o $(ALIB)
+	$(CC) $(COMMON) $(CFLAGS) $^ -o $@ $(LDFLAGS) $(ALIB)
+
+decryptor: $(OBJDIR)decrypt_weights.o $(ALIB)
+	$(CC) $(COMMON) $(CFLAGS) $^ -o $@ $(LDFLAGS) $(ALIB)
+
 $(OBJDIR)%.o: %.c $(DEPS)
 	$(CC) $(COMMON) $(CFLAGS) -c $< -o $@
 
