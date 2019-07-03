@@ -1370,7 +1370,8 @@ void load_weights_upto_decrypt(network *net, char *filename, int cutoff, int dec
         cuda_set_device(net->gpu_index);
     }
 #endif
-    fprintf(stderr, "Loading weights from %s...", filename);
+    if(decrypt) fprintf(stderr, "Loading and decrypting weights from %s...\n", filename);
+    else fprintf(stderr, "Loading weights from %s...\n", filename);
     fflush(stdout);
     FILE *fp = fopen(filename, "rb");
     if(!fp) file_error(filename);
