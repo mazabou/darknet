@@ -257,6 +257,8 @@ void detect_in_video(char *cfgfile, char *weightfile, char *video_filename,
     printf("Video Detector\n");
     net = parse_network_cfg_custom(cfgfile, 1, 1);    // set batch=1
     if(weightfile){
+        if(decrypt_weights) printf("Loading and decrypting weights\n");
+        else printf("Loading weights\n");
         load_weights_decrypt(&net, weightfile, decrypt_weights);
     }
     //set_batch_network(&net, 1);
