@@ -1,4 +1,48 @@
 ﻿# Yolo-v3 and Yolo-v2 for Windows and Linux
+
+### What does the repository bring?
+
+This repository does not bring improvement to Darknet and just add some functionality
+useful for our particular task, traffic sign detection.
+
+#### Video runner
+
+We added a way to process a video directly without displaying it and instead writing the results
+in a json file.
+
+This tool can be compiled with: (only tested on Linux, need opencv)
+
+    make video_runner -j12 
+
+This executable should be called as:
+
+    ./video_runner <config_file> <weights_file> <video_path> <classes_name_file> <out_put_json_file> <decrypt_weight(int)> [<threshold> = 0.5]
+
+#### Weights obfuscation
+
+Ways to hide the weights so they can't be used without running a particular sequence of operation on
+them. The following command will make the tools handling this cases
+
+    make decryptor encryptor -j12
+
+#### Specific configurations
+
+We tuned anchors and input size of Yolov3 for different traffic signs detection tasks and added
+the configurations in [cfg](./cfg) directory.
+
+#### .so library generation
+
+Finally we added to the make file a way to generate libdarknet.so which can then be used to
+call the powerful function of darknet directly from python using cython.
+
+This library can be compiled using:
+
+    make libdarknet.so -j12
+
+-------
+
+Bellow is the original readme file, full of very useful information.
+
 ### (neural network for object detection) - Tensor Cores can be used on [Linux](https://github.com/AlexeyAB/darknet#how-to-compile-on-linux) and [Windows](https://github.com/AlexeyAB/darknet#how-to-compile-on-windows-using-vcpkg)
 
 More details: http://pjreddie.com/darknet/yolo/
