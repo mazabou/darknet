@@ -6,18 +6,22 @@ AVX=1
 OPENMP=1
 LIBSO=1
 ZED_CAMERA=0
+ZED_CAMERA_v2_8=0
 
 # set GPU=1 and CUDNN=1 to speedup on GPU
 # set CUDNN_HALF=1 to further speedup 3 x times (Mixed-precision on Tensor Cores) GPU: Volta, Xavier, Turing and higher
 # set AVX=1 and OPENMP=1 to speedup on CPU (if error occurs then set AVX=0)
+# set ZED_CAMERA=1 to enable ZED SDK 3.0 and above
+# set ZED_CAMERA_v2_8=1 to enable ZED SDK 2.X
 
+USE_CPP=0
 DEBUG=0
 
 ARCH= -gencode arch=compute_30,code=sm_30 \
       -gencode arch=compute_35,code=sm_35 \
       -gencode arch=compute_50,code=[sm_50,compute_50] \
       -gencode arch=compute_52,code=[sm_52,compute_52] \
-	  -gencode arch=compute_61,code=[sm_61,compute_61]
+	    -gencode arch=compute_61,code=[sm_61,compute_61]
 
 OS := $(shell uname)
 
@@ -53,8 +57,13 @@ ALIB=libdarknet.a
 APPNAMESO=uselib
 endif
 
+ifeq ($(USE_CPP), 1)
+CC=g++
+else
 CC=gcc
-CPP=g++
+endif
+
+CPP=g++ -std=c++11
 NVCC=nvcc
 AR=ar
 OPTS=-Ofast
@@ -75,11 +84,15 @@ endif
 
 CFLAGS+=$(OPTS)
 
+ifneq (,$(findstring MSYS_NT,$(OS)))
+LDFLAGS+=-lws2_32
+endif
+
 ifeq ($(OPENCV), 1)
 COMMON+= -DOPENCV
 CFLAGS+= -DOPENCV
-LDFLAGS+= `pkg-config --libs opencv`
-COMMON+= `pkg-config --cflags opencv`
+LDFLAGS+= `pkg-config --libs opencv4 2> /dev/null || pkg-config --libs opencv`
+COMMON+= `pkg-config --cflags opencv4 2> /dev/null || pkg-config --cflags opencv`
 endif
 
 ifeq ($(OPENMP), 1)
@@ -116,25 +129,30 @@ endif
 
 ifeq ($(ZED_CAMERA), 1)
 CFLAGS+= -DZED_STEREO -I/usr/local/zed/include
+ifeq ($(ZED_CAMERA_v2_8), 1)
 LDFLAGS+= -L/usr/local/zed/lib -lsl_core -lsl_input -lsl_zed
 #-lstdc++ -D_GLIBCXX_USE_CXX11_ABI=0
+else
+LDFLAGS+= -L/usr/local/zed/lib -lsl_zed
+#-lstdc++ -D_GLIBCXX_USE_CXX11_ABI=0
+endif
 endif
 
-OBJ=image_opencv.o http_stream.o gemm.o utils.o dark_cuda.o convolutional_layer.o list.o image.o activations.o im2col.o col2im.o blas.o crop_layer.o dropout_layer.o maxpool_layer.o softmax_layer.o data.o matrix.o network.o connected_layer.o cost_layer.o parser.o option_list.o darknet.o detection_layer.o captcha.o route_layer.o writing.o box.o nightmare.o normalization_layer.o avgpool_layer.o coco.o dice.o yolo.o detector.o layer.o compare.o classifier.o local_layer.o swag.o shortcut_layer.o activation_layer.o rnn_layer.o gru_layer.o rnn.o rnn_vid.o crnn_layer.o demo.o tag.o cifar.o go.o batchnorm_layer.o art.o region_layer.o reorg_layer.o reorg_old_layer.o super.o voxel.o tree.o yolo_layer.o upsample_layer.o lstm_layer.o video_detect.o
-ifeq ($(GPU), 1) 
-LDFLAGS+= -lstdc++ 
+OBJ=image_opencv.o http_stream.o gemm.o utils.o dark_cuda.o convolutional_layer.o list.o image.o activations.o im2col.o col2im.o blas.o crop_layer.o dropout_layer.o maxpool_layer.o softmax_layer.o data.o matrix.o network.o connected_layer.o cost_layer.o parser.o option_list.o darknet.o detection_layer.o captcha.o route_layer.o writing.o box.o nightmare.o normalization_layer.o avgpool_layer.o coco.o dice.o yolo.o detector.o layer.o compare.o classifier.o local_layer.o swag.o shortcut_layer.o activation_layer.o rnn_layer.o gru_layer.o rnn.o rnn_vid.o crnn_layer.o demo.o tag.o cifar.o go.o batchnorm_layer.o art.o region_layer.o reorg_layer.o reorg_old_layer.o super.o voxel.o tree.o yolo_layer.o gaussian_yolo_layer.o upsample_layer.o lstm_layer.o conv_lstm_layer.o scale_channels_layer.o sam_layer.o video_detect.o
+ifeq ($(GPU), 1)
+LDFLAGS+= -lstdc++
 OBJ+=convolutional_kernels.o activation_kernels.o im2col_kernels.o col2im_kernels.o blas_kernels.o crop_layer_kernels.o dropout_layer_kernels.o maxpool_layer_kernels.o network_kernels.o avgpool_layer_kernels.o
 endif
 
 OBJS = $(addprefix $(OBJDIR), $(OBJ))
 DEPS = $(wildcard src/*.h) Makefile include/darknet.h
 
-all: obj backup results setchmod $(EXEC) $(LIBNAMESO) $(APPNAMESO)
+all: $(OBJDIR) backup results setchmod $(EXEC) $(LIBNAMESO) $(APPNAMESO)
 
 ifeq ($(LIBSO), 1)
 CFLAGS+= -fPIC
 
-$(LIBNAMESO): $(OBJS) include/yolo_v2_class.hpp src/yolo_v2_class.cpp
+$(LIBNAMESO): $(OBJDIR) $(OBJS) include/yolo_v2_class.hpp src/yolo_v2_class.cpp
 	$(CPP) -shared -std=c++11 -fvisibility=hidden -DLIB_EXPORTS $(COMMON) $(CFLAGS) $(OBJS) src/yolo_v2_class.cpp -o $@ $(LDFLAGS)
 
 $(APPNAMESO): $(LIBNAMESO) include/yolo_v2_class.hpp src/yolo_console_dll.cpp
@@ -162,11 +180,16 @@ $(OBJDIR)%.o: %.cpp $(DEPS)
 $(OBJDIR)%.o: %.cu $(DEPS)
 	$(NVCC) $(ARCH) $(COMMON) --compiler-options "$(CFLAGS)" -c $< -o $@
 
+
 $(ALIB): $(OBJS)
 	$(AR) $(ARFLAGS) $@ $^
 
 obj:
 	mkdir -p obj
+
+
+
+
 backup:
 	mkdir -p backup
 results:

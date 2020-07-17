@@ -1,10 +1,11 @@
 #include "avgpool_layer.h"
 #include "dark_cuda.h"
+#include "utils.h"
 #include <stdio.h>
 
 avgpool_layer make_avgpool_layer(int batch, int w, int h, int c)
 {
-    fprintf(stderr, "avg                     %4d x%4d x%4d   ->  %4d\n",  w, h, c, c);
+    fprintf(stderr, "avg                          %4d x%4d x%4d ->   %4d\n",  w, h, c, c);
     avgpool_layer l = { (LAYER_TYPE)0 };
     l.type = AVGPOOL;
     l.batch = batch;
@@ -17,8 +18,8 @@ avgpool_layer make_avgpool_layer(int batch, int w, int h, int c)
     l.outputs = l.out_c;
     l.inputs = h*w*c;
     int output_size = l.outputs * batch;
-    l.output = (float*)calloc(output_size, sizeof(float));
-    l.delta = (float*)calloc(output_size, sizeof(float));
+    l.output = (float*)xcalloc(output_size, sizeof(float));
+    l.delta = (float*)xcalloc(output_size, sizeof(float));
     l.forward = forward_avgpool_layer;
     l.backward = backward_avgpool_layer;
     #ifdef GPU
